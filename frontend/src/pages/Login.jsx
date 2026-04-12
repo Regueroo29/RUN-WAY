@@ -1,0 +1,154 @@
+import { useState } from "react";
+import API from "../services/api";
+import { useNavigate, Link } from "react-router-dom";
+
+function Login() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  const handleSubmit = async () => {
+    if (!email || !password) {
+      setError("Please fill in all fields");
+      return;
+    }
+    
+    setLoading(true);
+    setError("");
+    
+    try {
+      const res = await API.post("/login", { email, password });
+      const userData = res.data;
+      
+      // Check if account is suspended
+      if (userData.status === 'suspended') {
+        if (userData.suspension_end_date && new Date(userData.suspension_end_date) < new Date()) {
+          // Auto-unsuspend if time expired
+          userData.status = 'active';
+        } else {
+          const endDate = userData.suspension_end_date 
+            ? new Date(userData.suspension_end_date).toLocaleDateString()
+            : 'permanently';
+          setError(`Account suspended until ${endDate}. Reason: ${userData.suspension_reason}`);
+          setLoading(false);
+          return;
+        }
+      }
+      
+      localStorage.setItem("user", JSON.stringify(userData));
+
+      // Check for notifications
+      try {
+        const notifRes = await API.get(`/admin/notifications/${userData.user_id}`);
+        if (notifRes.data.length > 0) {
+          // Show notifications
+          notifRes.data.forEach(notif => {
+            alert(`📢 ${notif.message}`);
+            // Mark as read
+            API.post(`/admin/notifications/${notif.notification_id}/read`);
+          });
+        }
+      } catch (err) {
+        console.log("No new notifications");
+      }
+
+      // Redirect based on role
+      if (userData.role === 'admin') {
+        navigate("/admin");
+      } else {
+        navigate("/path");
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || "Invalid email or password");
+      setLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      handleSubmit();
+    }
+  };
+
+  return (
+    <div className="auth-split-page">
+      <div className="split-image-side">
+        <div className="split-image-circle">
+          <img src="/login.jpg" alt="Fashion" />
+        </div>
+        {/* ✅ VERTICAL TEXT AROUND CIRCLE */}
+        <div className="vertical-text left">L</div>
+        <div className="vertical-text top-left">O</div>
+        <div className="vertical-text top">G</div>
+        <div className="vertical-text top-right">I</div>
+        <div className="vertical-text right">N</div>
+        
+        <div className="split-brand-vertical">RUN-WAY</div>
+      </div>
+
+      <div className="split-form-side">
+        <div className="auth-boxes top-right">
+          <Link to="/login" className="auth-box active">
+            <span>Login</span>
+          </Link>
+          <Link to="/register" className="auth-box">
+            <span>Register</span>
+          </Link>
+        </div>
+
+        <div className="split-form-container">
+          <h2>LOG IN</h2>
+          
+          {error && <div className="error-message">{error}</div>}
+
+          <div className="form-group">
+            <label>USERNAME</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={handleKeyDown}
+              autoFocus
+            />
+          </div>
+
+          <div className="form-group">
+            <label>PASSWORD</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={handleKeyDown}
+            />
+          </div>
+
+          <a href="#" className="forgot-link">FORGET YOUR PASSWORD?</a>
+
+          <button 
+            onClick={handleSubmit} 
+            className="submit-btn"
+            disabled={loading}
+          >
+            {loading ? "LOADING..." : "SUBMIT"}
+          </button>
+
+          <div className="divider">
+            <span>OR</span>
+          </div>
+
+          <div className="social-login">
+            <a href="#" className="social-icon">f</a>
+            <a href="#" className="social-icon">📷</a>
+            <a href="#" className="social-icon">G</a>
+          </div>
+        </div>
+
+        <Link to="/" className="back-link">BACK</Link>
+      </div>
+    </div>
+  );
+}
+
+export default Login;
