@@ -42,6 +42,15 @@ router.get('/designs', async (req, res) => {
         (SELECT AVG(rating) FROM ratings WHERE design_id = d.design_id) as avg_rating
       FROM designs d JOIN users u ON d.designer_id = u.user_id ORDER BY d.created_at DESC`
     );
+    
+    // ADD THIS: Format image URLs to full paths
+    const PORT = process.env.PORT || 5000;
+    designs.forEach(design => {
+      if (design.image_url && !design.image_url.startsWith('http')) {
+        design.image_url = `http://localhost:${PORT}${design.image_url}`;
+      }
+    });
+    
     res.json(designs);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -51,10 +60,23 @@ router.get('/designs', async (req, res) => {
 // Get activities
 router.get('/activities', async (req, res) => {
   try {
-    const [activities] = await global.db.promise().query(
-      `SELECT al.*, u.username FROM activity_logs al
-      JOIN users u ON al.user_id = u.user_id ORDER BY al.created_at DESC LIMIT 100`
-    );
+    const { filter } = req.query;
+    
+    let query = `SELECT al.*, u.username FROM activity_logs al
+      JOIN users u ON al.user_id = u.user_id`;
+    
+    if (filter === 'posts') {
+      query += ` WHERE al.action_type IN ('upload_design', 'edit_design', 'delete_design')`;
+    } else if (filter === 'updates') {
+      query += ` WHERE al.action_type IN ('update_profile', 'password_change', 'switch_role', 'hide_design', 'unhide_design', 'suspend', 'unsuspend')`;
+    } else if (filter === 'interactions') {
+      query += ` WHERE al.action_type IN ('like_design', 'follow', 'rate_design')`;
+    }
+    // 'all' or no filter = no WHERE clause
+    
+    query += ` ORDER BY al.created_at DESC LIMIT 100`;
+    
+    const [activities] = await global.db.promise().query(query);
     res.json(activities);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -66,15 +88,27 @@ router.get('/users/:id/details', async (req, res) => {
   try {
     const userId = req.params.id;
     const [users] = await global.db.promise().query(
-      `SELECT u.*, a.username as moderated_by_name
+      `SELECT u.*, a.username as moderated_by_name,
+        (SELECT COUNT(*) FROM designs WHERE designer_id = u.user_id) as design_count,
+        (SELECT COUNT(*) FROM likes WHERE user_id = u.user_id) as like_count,
+        (SELECT COUNT(*) FROM follows WHERE designer_id = u.user_id) as follower_count
       FROM users u LEFT JOIN users a ON u.moderated_by = a.user_id WHERE u.user_id = ?`, [userId]
     );
     
     if (users.length === 0) return res.status(404).json({ error: 'User not found' });
     
+    // Get designs with formatted image URLs
     const [designs] = await global.db.promise().query(
       `SELECT d.* FROM designs d WHERE d.designer_id = ? ORDER BY d.created_at DESC`, [userId]
     );
+    
+    // ADD THIS: Format image URLs for designs
+    const PORT = process.env.PORT || 5000;
+    designs.forEach(design => {
+      if (design.image_url && !design.image_url.startsWith('http')) {
+        design.image_url = `http://localhost:${PORT}${design.image_url}`;
+      }
+    });
     
     const [history] = await global.db.promise().query(
       `SELECT m.*, u.username as admin_name FROM moderation_logs m
@@ -152,16 +186,28 @@ router.get('/designs/:id/details', async (req, res) => {
   try {
     const designId = req.params.id;
     const [designs] = await global.db.promise().query(
-      `SELECT d.*, u.username, u.email, u.status as user_status, a.username as moderated_by_name
-      FROM designs d JOIN users u ON d.designer_id = u.user_id
-      LEFT JOIN users a ON d.moderated_by = a.user_id WHERE d.design_id = ?`, [designId]
+      `SELECT d.*, u.username, u.email, u.status as user_status, a.username as moderated_by_name,
+        (SELECT COUNT(*) FROM likes WHERE design_id = d.design_id) as like_count,
+        (SELECT AVG(rating) FROM ratings WHERE design_id = d.design_id) as avg_rating
+      FROM designs d 
+      JOIN users u ON d.designer_id = u.user_id
+      LEFT JOIN users a ON d.moderated_by = a.user_id 
+      WHERE d.design_id = ?`, [designId]
     );
     
     if (designs.length === 0) return res.status(404).json({ error: 'Design not found' });
     
+    // ADD THIS: Format image URL
+    const PORT = process.env.PORT || 5000;
+    if (designs[0].image_url && !designs[0].image_url.startsWith('http')) {
+      designs[0].image_url = `http://localhost:${PORT}${designs[0].image_url}`;
+    }
+    
     const [history] = await global.db.promise().query(
-      `SELECT m.*, u.username as admin_name FROM moderation_logs m
-      JOIN users u ON m.admin_id = u.user_id WHERE m.target_type = 'design' AND m.target_id = ?`, [designId]
+      `SELECT m.*, u.username as admin_name 
+      FROM moderation_logs m
+      JOIN users u ON m.admin_id = u.user_id 
+      WHERE m.target_type = 'design' AND m.target_id = ?`, [designId]
     );
     
     res.json({ design: designs[0], moderation_history: history });

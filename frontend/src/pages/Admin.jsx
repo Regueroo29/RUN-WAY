@@ -13,6 +13,7 @@ function Admin() {
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedDesign, setSelectedDesign] = useState(null);
+  const [activityFilter, setActivityFilter] = useState('all');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -43,13 +44,23 @@ function Admin() {
       setUsers(usersRes.data);
       setDesigns(designsRes.data);
       console.log("Designs data:", designsRes.data);
-console.log("First design keys:", designsRes.data[0] ? Object.keys(designsRes.data[0]) : 'No designs');
+      console.log("First design keys:", designsRes.data[0] ? Object.keys(designsRes.data[0]) : 'No designs');
       setActivities(actRes.data);
     } catch (err) {
       console.error("Error fetching admin data:", err);
       alert("Error loading admin data. Please try again.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Update fetchData to accept filter
+  const fetchActivities = async (filter = 'all') => {
+    try {
+      const res = await API.get(`/admin/activities?filter=${filter}`);
+      setActivities(res.data);
+    } catch (err) {
+      console.error("Error fetching activities:", err);
     }
   };
 
@@ -173,12 +184,16 @@ console.log("First design keys:", designsRes.data[0] ? Object.keys(designsRes.da
               <tbody>
                 {designs.map(d => (
                   <tr key={d.design_id} className={d.status !== 'active' ? 'hidden-row' : ''}>
-                    <td className="design-image-cell">  {/* ADD THIS CELL */}
+                    <td className="design-image-cell">
                       {d.image_url ? (
                         <img 
                           src={d.image_url} 
                           alt={d.title}
                           className="admin-design-thumbnail"
+                          onError={(e) => {
+                            console.log('Image failed to load:', d.image_url);
+                            e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60"><rect width="60" height="60" fill="%23333"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23999" font-size="10">Error</text></svg>';
+                          }}
                           onClick={() => setSelectedDesign(d.design_id)}
                         />
                       ) : (
@@ -205,7 +220,25 @@ console.log("First design keys:", designsRes.data[0] ? Object.keys(designsRes.da
 
         {activeTab === "activity" && (
           <div className="activity-log-section">
-            <h2 className="activity-header">Recent Activity</h2>
+            <div className="activity-header-row">
+              <h2 className="activity-header">Recent Activity</h2>
+              <div className="activity-filters">
+                <select 
+                  value={activityFilter} 
+                  onChange={(e) => {
+                    setActivityFilter(e.target.value);
+                    fetchActivities(e.target.value);
+                  }}
+                  className="activity-filter-select"
+                >
+                  <option value="all">All Activity</option>
+                  <option value="posts">Posts</option>
+                  <option value="updates">Updates</option>
+                  <option value="interactions">Interactions</option>
+                  <option value="moderation">Moderation</option>
+                </select>
+              </div>
+            </div>
             <div className="activity-log">
               {activities.length === 0 ? (
                 <p className="empty-activity">No activity recorded yet.</p>

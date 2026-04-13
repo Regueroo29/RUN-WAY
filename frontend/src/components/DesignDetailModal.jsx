@@ -6,7 +6,8 @@ function DesignDetailModal({ designId, onClose, onAction }) {
   const [designData, setDesignData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionReason, setActionReason] = useState('');
-  const [showActionForm, setShowActionForm] = useState(null); // 'hide', 'unhide', 'delete'
+  const [showActionForm, setShowActionForm] = useState(null);
+  const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
     fetchDesignDetails();
@@ -16,6 +17,7 @@ function DesignDetailModal({ designId, onClose, onAction }) {
     try {
       const res = await API.get(`/admin/designs/${designId}/details`);
       setDesignData(res.data);
+      setImageError(false); // Reset image error on new load
     } catch (err) {
       alert('Error loading design details');
     } finally {
@@ -63,19 +65,47 @@ function DesignDetailModal({ designId, onClose, onAction }) {
 
         <div className="modal-body">
           <div className="design-preview">
-            <img src={design.image_url} alt={design.title} />
+            {!imageError && design.image_url ? (
+              <img 
+                src={design.image_url} 
+                alt={design.title}
+                onError={() => setImageError(true)}
+                style={{ width: '100%', maxHeight: '400px', objectFit: 'cover', borderRadius: '8px' }}
+              />
+            ) : (
+              <div className="image-error-placeholder" style={{
+                width: '100%',
+                height: '300px',
+                background: 'rgba(255,255,255,0.05)',
+                border: '2px dashed rgba(200,180,160,0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '8px',
+                color: 'rgba(255,255,255,0.5)'
+              }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '48px', marginBottom: '10px' }}>🖼️</div>
+                  <div>Image not available</div>
+                  <div style={{ fontSize: '12px', marginTop: '5px', opacity: 0.7 }}>
+                    {design.image_url || 'No URL provided'}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           
           <div className="design-details">
             <h3>{design.title}</h3>
-            <p className="design-description">{design.description}</p>
+            <p className="design-description">{design.description || 'No description'}</p>
             
             <div className="info-grid">
               <div><label>Designer:</label> <span>{design.username}</span></div>
               <div><label>Email:</label> <span>{design.email}</span></div>
-              <div><label>Season:</label> <span>{design.season}</span></div>
+              <div><label>Season:</label> <span>{design.season || 'N/A'}</span></div>
               <div><label>Created:</label> <span>{new Date(design.created_at).toLocaleString()}</span></div>
               <div><label>Likes:</label> <span>{design.like_count || 0}</span></div>
+              <div><label>Avg Rating:</label> <span>{design.avg_rating ? Number(design.avg_rating).toFixed(1) + '/5' : 'No ratings'}</span></div>
             </div>
 
             {design.status !== 'active' && design.moderation_reason && (
@@ -86,7 +116,7 @@ function DesignDetailModal({ designId, onClose, onAction }) {
             )}
 
             <div className="action-buttons">
-              <button className="btn-view" onClick={() => window.open(`/design/${designId}`, '_blank')}>
+              <button className="btn-view" onClick={() => alert('Public page not implemented yet')}>
                 View Public Page
               </button>
               
@@ -107,28 +137,30 @@ function DesignDetailModal({ designId, onClose, onAction }) {
 
             {showActionForm && (
               <div className="action-form">
-                <h4>{showActionForm === 'delete' ? 'Delete Design' : 'Hide Design'}</h4>
-                <textarea
-                  placeholder="Reason for this action (required)..."
-                  value={actionReason}
-                  onChange={(e) => setActionReason(e.target.value)}
-                />
+                <h4>{showActionForm === 'delete' ? 'Delete Design' : showActionForm === 'hide' ? 'Hide Design' : 'Unhide Design'}</h4>
+                {showActionForm !== 'unhide' && (
+                  <textarea
+                    placeholder="Reason for this action (required)..."
+                    value={actionReason}
+                    onChange={(e) => setActionReason(e.target.value)}
+                  />
+                )}
                 <div className="form-actions">
                   <button 
                     onClick={() => handleModerate(showActionForm)}
                     disabled={!actionReason && showActionForm !== 'unhide'}
-                    className={showActionForm === 'delete' ? 'btn-danger' : 'btn-warning'}
+                    className={showActionForm === 'delete' ? 'btn-danger' : showActionForm === 'hide' ? 'btn-warning' : 'btn-success'}
                   >
                     Confirm {showActionForm}
                   </button>
-                  <button className="btn-cancel" onClick={() => setShowActionForm(null)}>
+                  <button className="btn-cancel" onClick={() => { setShowActionForm(null); setActionReason(''); }}>
                     Cancel
                   </button>
                 </div>
               </div>
             )}
 
-            {moderation_history.length > 0 && (
+            {moderation_history && moderation_history.length > 0 && (
               <div className="moderation-history">
                 <h4>Moderation History</h4>
                 {moderation_history.map(log => (

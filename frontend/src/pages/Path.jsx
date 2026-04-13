@@ -9,14 +9,14 @@ function Path() {
         <div className="path-choices">
           <Link to="/designer" className="path-card designer">
             <div className="path-image">
-              <img src="/bgimage.jpg" alt="Designer" />
+              <img src="/RunWayIcon.jpg" alt="Designer" />
             </div>
             <span className="path-label">DESIGNER</span>
           </Link>
 
           <Link to="/dashboard" className="path-card visitor">
             <div className="path-image">
-              <img src="/bgimage.jpg" alt="Visitor" />
+              <img src="/RunWayIcon.jpg" alt="Visitor" />
             </div>
             <span className="path-label">VISITOR</span>
           </Link>

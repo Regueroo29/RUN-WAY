@@ -337,6 +337,36 @@
   justify-content: center;
 }
 
+.activity-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-shrink: 0;
+}
+
+.activity-filter-select {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(200, 180, 160, 0.3);
+  color: white;
+  padding: 8px 15px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+}
+
+.activity-filter-select option {
+  background: #2a2a2a;
+  color: white;
+}
+
+/* Additional activity action colors for moderation */
+.activity-action.hide_design { background: rgba(255, 100, 0, 0.2); color: #ffaa00; }
+.activity-action.unhide_design { background: rgba(0, 255, 100, 0.2); color: #6bff9d; }
+.activity-action.suspend { background: rgba(255, 0, 0, 0.2); color: #ff6b6b; }
+.activity-action.unsuspend { background: rgba(0, 255, 0, 0.2); color: #6bff9d; }
+
 /* ===== SCROLLBAR STYLING ===== */
 .activity-log::-webkit-scrollbar,
 .admin-table-container::-webkit-scrollbar {
