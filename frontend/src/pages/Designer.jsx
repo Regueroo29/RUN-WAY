@@ -17,7 +17,7 @@ function Designer() {
     description: "",
     season: "Spring 2026",
     image: null,
-    imagePreview: "/bgimage.jpg"
+    imagePreview: "/RunWayIcon.jpg"
   });
 
   // Profile edit

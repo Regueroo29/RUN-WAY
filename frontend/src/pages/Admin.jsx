@@ -42,6 +42,8 @@ function Admin() {
       ]);
       setUsers(usersRes.data);
       setDesigns(designsRes.data);
+      console.log("Designs data:", designsRes.data);
+console.log("First design keys:", designsRes.data[0] ? Object.keys(designsRes.data[0]) : 'No designs');
       setActivities(actRes.data);
     } catch (err) {
       console.error("Error fetching admin data:", err);
@@ -143,50 +145,63 @@ function Admin() {
         )}
 
         {activeTab === "designs" && (
-          <>
-            <div className="admin-stats-container">
-              <div className="stat-card">
-                <span className="stat-number">{designs.filter(d => d.status === 'active').length}</span>
-                <span className="stat-label">Active</span>
-              </div>
-              <div className="stat-card">
-                <span className="stat-number">{designs.filter(d => d.status === 'hidden').length}</span>
-                <span className="stat-label">Hidden</span>
-              </div>
+        <>
+          <div className="admin-stats-container">
+            <div className="stat-card">
+              <span className="stat-number">{designs.filter(d => d.status === 'active').length}</span>
+              <span className="stat-label">Active</span>
             </div>
-            
-            <div className="admin-table-container">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Title</th>
-                    <th>Designer</th>
-                    <th>Status</th>
-                    <th>Season</th>
-                    <th>Actions</th>
+            <div className="stat-card">
+              <span className="stat-number">{designs.filter(d => d.status === 'hidden').length}</span>
+              <span className="stat-label">Hidden</span>
+            </div>
+          </div>
+          
+          <div className="admin-table-container">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Image</th>  {/* ADD THIS COLUMN */}
+                  <th>ID</th>
+                  <th>Title</th>
+                  <th>Designer</th>
+                  <th>Status</th>
+                  <th>Season</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {designs.map(d => (
+                  <tr key={d.design_id} className={d.status !== 'active' ? 'hidden-row' : ''}>
+                    <td className="design-image-cell">  {/* ADD THIS CELL */}
+                      {d.image_url ? (
+                        <img 
+                          src={d.image_url} 
+                          alt={d.title}
+                          className="admin-design-thumbnail"
+                          onClick={() => setSelectedDesign(d.design_id)}
+                        />
+                      ) : (
+                        <div className="no-image-placeholder">No Image</div>
+                      )}
+                    </td>
+                    <td>{d.design_id}</td>
+                    <td className="clickable" onClick={() => setSelectedDesign(d.design_id)}>{d.title}</td>
+                    <td>{d.designer_name}</td>
+                    <td><span className={`status-badge small ${d.status}`}>{d.status}</span></td>
+                    <td>{d.season}</td>
+                    <td>
+                      <button onClick={() => setSelectedDesign(d.design_id)} className="btn-view-sm">
+                        Moderate
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {designs.map(d => (
-                    <tr key={d.design_id} className={d.status !== 'active' ? 'hidden-row' : ''}>
-                      <td>{d.design_id}</td>
-                      <td className="clickable" onClick={() => setSelectedDesign(d.design_id)}>{d.title}</td>
-                      <td>{d.designer_name}</td>
-                      <td><span className={`status-badge small ${d.status}`}>{d.status}</span></td>
-                      <td>{d.season}</td>
-                      <td>
-                        <button onClick={() => setSelectedDesign(d.design_id)} className="btn-view-sm">
-                          Moderate
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
         {activeTab === "activity" && (
           <div className="activity-log-section">

@@ -206,6 +206,37 @@
   color: white;
 }
 
+.design-image-cell {
+  width: 80px;
+  padding: 8px;
+}
+
+.admin-design-thumbnail {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.admin-design-thumbnail:hover {
+  transform: scale(1.1);
+}
+
+.no-image-placeholder {
+  width: 60px;
+  height: 60px;
+  background: #f0f0f0;
+  border: 1px dashed #ccc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #999;
+  border-radius: 4px;
+}
+
 /* ===== ACTIVITY LOG - FULL HEIGHT ===== */
 .activity-log-section {
   flex: 1; /* Takes all remaining height */

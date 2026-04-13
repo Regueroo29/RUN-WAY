@@ -119,7 +119,7 @@ function DesignerProfile() {
     <div className="designer-public-profile">
       {/* Background */}
       <div className="designer-hero-bg">
-        <img src="/bgimage.jpg" alt="Background" />
+        <img src="/bgm.jpg" alt="Background" />
         <div className="hero-overlay"></div>
       </div>
 
