@@ -20,10 +20,10 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/path" element={<Path />} />
         <Route path="/designer/:id" element={<DesignerProfile />} />
-        <Route path="/designer" element={<Designer />} /> {/* ✅ Added: Designer route for designer dashboard | needs some few fixes */ }
+        <Route path="/designer" element={<Designer />} /> 
         <Route path="/dashboard" element={<Dashboard />} /> 
-        <Route path="/profile" element={<Profile />} />  {/* ✅ Added: Profile route for user profile page | needs some few fixes */ }
-        <Route path="/admin" element={<Admin />} />  {/* ✅ Added: Admin route for admin dashboard | admin - admin123 / cant be used error needs to be fixed*/ }
+        <Route path="/profile" element={<Profile />} />  
+        <Route path="/admin" element={<Admin />} />  
       </Routes>
     </Router>
   );
