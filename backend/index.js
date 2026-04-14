@@ -417,6 +417,35 @@ app.delete("/api/designs/:id", (req, res) => {
   );
 });
 
+// ================= CREATE DESIGN (UPLOAD) =================
+app.post("/api/designs", upload.single("image"), (req, res) => {
+  const { designer_id, title, description, season } = req.body;
+  
+  if (!req.file) {
+    return res.status(400).json({ error: "No image uploaded" });
+  }
+  
+  const imageUrl = `/uploads/${req.file.filename}`;
+  
+  db.query(
+    "INSERT INTO designs (designer_id, title, description, image_url, season) VALUES (?, ?, ?, ?, ?)",
+    [designer_id, title, description, imageUrl, season],
+    (err, result) => {
+      if (err) {
+        console.error("Database error:", err);
+        return res.status(500).json({ error: err.message });
+      }
+      
+      logActivity(designer_id, 'upload_design', result.insertId, `Uploaded: ${title}`);
+      res.json({ 
+        message: "Design uploaded successfully", 
+        design_id: result.insertId,
+        image_url: `http://localhost:${PORT}${imageUrl}`
+      });
+    }
+  );
+});
+
 // ================= LIKES =================
 
 app.post("/api/likes/toggle", (req, res) => {

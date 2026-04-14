@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react"; {/* THESE 3 CODES AT THE TOP ARE THE ONES THAT ARE IMPORTING THE LIBRARIES THAT TYPE SHI JAHAHAH */}
 import { useNavigate, Link } from "react-router-dom";
 import API from "../services/api";
 
@@ -11,8 +11,16 @@ function Designer() {
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef(null);
   
-  // Upload form
+  // SEPARATE states for upload and edit
   const [uploadForm, setUploadForm] = useState({
+    title: "",
+    description: "",
+    season: "Spring 2026",
+    image: null,
+    imagePreview: "/RunWayIcon.jpg"
+  });
+
+  const [editForm, setEditForm] = useState({
     title: "",
     description: "",
     season: "Spring 2026",
@@ -42,9 +50,9 @@ function Designer() {
   }, [navigate]);
 
   useEffect(() => {
-  if (user?.user_id) {
-    fetchFreshUserData();
-  }
+    if (user?.user_id) {
+      fetchFreshUserData();
+    }
   }, [activeTab]);
 
   const fetchFreshUserData = async () => {
@@ -69,14 +77,41 @@ function Designer() {
     }
   };
 
-  const handleImageSelect = (e) => {
+  // RESET upload form when entering upload tab
+  const resetUploadForm = () => {
+    setUploadForm({
+      title: "",
+      description: "",
+      season: "Spring 2026",
+      image: null,
+      imagePreview: "/RunWayIcon.jpg"
+    });
+  };
+
+  // Handle tab changes with reset
+  const handleTabChange = (tab) => {
+    if (tab === "upload") {
+      resetUploadForm(); // Clear upload form when entering upload
+    }
+    setActiveTab(tab);
+  };
+
+  const handleImageSelect = (e, isEdit = false) => {
     const file = e.target.files[0];
     if (file) {
-      setUploadForm({
-        ...uploadForm,
-        image: file,
-        imagePreview: URL.createObjectURL(file)
-      });
+      if (isEdit) {
+        setEditForm({
+          ...editForm,
+          image: file,
+          imagePreview: URL.createObjectURL(file)
+        });
+      } else {
+        setUploadForm({
+          ...uploadForm,
+          image: file,
+          imagePreview: URL.createObjectURL(file)
+        });
+      }
     }
   };
 
@@ -95,6 +130,7 @@ function Designer() {
       formData.append("description", uploadForm.description);
       formData.append("season", uploadForm.season);
       
+      // FIX: Remove /api prefix since your base URL already has it
       await API.post("/designs", formData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
@@ -102,13 +138,7 @@ function Designer() {
       alert("Design uploaded successfully!");
       setActiveTab("gallery");
       fetchDesigns(user.user_id);
-      setUploadForm({
-        title: "",
-        description: "",
-        season: "Spring 2026",
-        image: null,
-        imagePreview: "/bgimage.jpg"
-      });
+      resetUploadForm();
     } catch (err) {
       console.error("Upload error:", err);
       alert(err.response?.data?.error || "Error uploading design");
@@ -119,40 +149,44 @@ function Designer() {
 
   const handleEdit = (design) => {
     setEditingDesign(design);
-    setUploadForm({
+    setEditForm({
       title: design.title,
-      description: design.description,
-      season: design.season,
-      image: null,
-      imagePreview: design.image_url.startsWith('http') ? design.image_url : `http://localhost:5000${design.image_url}`
+      description: design.description || "",
+      season: design.season || "Spring 2026",
+      image: null, // No new image selected yet
+      imagePreview: design.image_url ? 
+        (design.image_url.startsWith('http') ? design.image_url : `http://localhost:5000${design.image_url}`) 
+        : "/RunWayIcon.jpg"
     });
     setActiveTab("edit");
   };
 
   const handleUpdate = async () => {
+    if (!editingDesign) return;
+    
     setLoading(true);
     try {
       // Check if a new image was selected
-      if (uploadForm.image instanceof File) {
+      if (editForm.image instanceof File) {
         // If new image, use FormData
         const formData = new FormData();
-        formData.append("image", uploadForm.image);
+        formData.append("image", editForm.image);
         formData.append("designer_id", user.user_id);
-        formData.append("title", uploadForm.title);
-        formData.append("description", uploadForm.description);
-        formData.append("season", uploadForm.season);
+        formData.append("title", editForm.title);
+        formData.append("description", editForm.description);
+        formData.append("season", editForm.season);
         
-        // Use POST to a new endpoint or modify your backend PUT to accept files
-        await API.post(`/api/designs/${editingDesign.design_id}/update-with-image`, formData, {
+        // FIX: Use correct endpoint without double /api
+        await API.post(`/designs/${editingDesign.design_id}/update-with-image`, formData, {
           headers: { "Content-Type": "multipart/form-data" }
         });
       } else {
         // No new image, just update text
         await API.put(`/designs/${editingDesign.design_id}`, {
           designer_id: user.user_id,
-          title: uploadForm.title,
-          description: uploadForm.description,
-          season: uploadForm.season
+          title: editForm.title,
+          description: editForm.description,
+          season: editForm.season
         });
       }
       
@@ -161,6 +195,7 @@ function Designer() {
       setActiveTab("gallery");
       fetchDesigns(user.user_id);
     } catch (err) {
+      console.error("Update error:", err);
       alert(err.response?.data?.error || "Error updating design");
     } finally {
       setLoading(false);
@@ -243,7 +278,6 @@ function Designer() {
   const stats = {
     totalViews: designs.reduce((acc, d) => acc + (d.view_count || 0), 0),
     totalLikes: designs.reduce((acc, d) => acc + (d.like_count || 0), 0),
-    // FIX: Only average designs that have ratings
     avgRating: designs.filter(d => d.avg_rating && d.avg_rating > 0).length > 0 
       ? (designs.filter(d => d.avg_rating && d.avg_rating > 0).reduce((acc, d) => acc + (d.avg_rating || 0), 0) / designs.filter(d => d.avg_rating && d.avg_rating > 0).length).toFixed(1)
       : 0,
@@ -257,10 +291,10 @@ function Designer() {
       <header className="studio-header">
         <div className="studio-logo">RUN-WAY</div>
         <nav className="studio-tabs">
-          <button className={activeTab === "gallery" ? "active" : ""} onClick={() => setActiveTab("gallery")}>
+          <button className={activeTab === "gallery" ? "active" : ""} onClick={() => handleTabChange("gallery")}>
             GALLERY
           </button>
-          <button className={activeTab === "upload" ? "active" : ""} onClick={() => setActiveTab("upload")}>
+          <button className={activeTab === "upload" ? "active" : ""} onClick={() => handleTabChange("upload")}>
             UPLOAD
           </button>
           <button className={activeTab === "stats" ? "active" : ""} onClick={() => setActiveTab("stats")}>
@@ -285,7 +319,7 @@ function Designer() {
                 <div key={item.design_id} className="gallery-item real-post">
                   <div className="item-image">
                     <img 
-                      src={`${item.image_url.startsWith('http') ? item.image_url : `http://localhost:5000${item.image_url}`}?t=${item.updated_at || Date.now()}`} 
+                      src={`${item.image_url?.startsWith('http') ? item.image_url : `http://localhost:5000${item.image_url}`}?t=${item.updated_at || Date.now()}`} 
                       alt={item.title} 
                     />
                     <div className="item-actions">
@@ -303,7 +337,7 @@ function Designer() {
                   </div>
                 </div>
               ))}
-              <div className="gallery-item empty" onClick={() => setActiveTab("upload")}>
+              <div className="gallery-item empty" onClick={() => handleTabChange("upload")}>
                 <div className="add-placeholder">+</div>
                 <p>Add New Design</p>
               </div>
@@ -311,73 +345,175 @@ function Designer() {
           </div>
         )}
 
-        {/* UPLOAD/EDIT TAB */}
-        {(activeTab === "upload" || activeTab === "edit") && (
-          <div className="upload-view">
+        {/* UPLOAD TAB - UNIQUE LAYOUT */}
+        {activeTab === "upload" && (
+          <div className="upload-view upload-layout">
             <div className="upload-container">
-              <div className="upload-preview">
-                <div className="preview-frame" onClick={() => fileInputRef.current?.click()}>
-                  <img src={uploadForm.imagePreview} alt="Preview" />
-                  <div className="upload-overlay">
-                    <span>📷 Click to {activeTab === "edit" ? "Change" : "Select"} Image</span>
-                  </div>
-                </div>
-                <input 
-                  type="file" 
-                  ref={fileInputRef}
-                  onChange={handleImageSelect}
-                  accept="image/*"
-                  style={{ display: 'none' }}
-                />
+              <div className="upload-header">
+                <h2>🆕 Upload New Design</h2>
+                <p className="upload-subtitle">Share your latest fashion creation with the world</p>
               </div>
               
-              <div className="upload-form">
-                <h2>{activeTab === "edit" ? "Edit Design" : "Upload New Design"}</h2>
-                
-                <div className="form-field">
-                  <label>Title *</label>
+              <div className="upload-content">
+                <div className="upload-preview upload-side">
+                  <div className="preview-frame upload-preview-box" onClick={() => fileInputRef.current?.click()}>
+                    <img src={uploadForm.imagePreview} alt="Preview" />
+                    <div className="upload-overlay">
+                      <span>📷 Click to Select Image</span>
+                    </div>
+                  </div>
                   <input 
-                    type="text" 
-                    placeholder="Collection name..."
-                    value={uploadForm.title}
-                    onChange={(e) => setUploadForm({...uploadForm, title: e.target.value})}
+                    type="file" 
+                    ref={fileInputRef}
+                    onChange={(e) => handleImageSelect(e, false)}
+                    accept="image/*"
+                    style={{ display: 'none' }}
                   />
                 </div>
                 
-                <div className="form-field">
-                  <label>Description</label>
-                  <textarea 
-                    placeholder="Describe your design..."
-                    value={uploadForm.description}
-                    onChange={(e) => setUploadForm({...uploadForm, description: e.target.value})}
-                    rows="4"
+                <div className="upload-form upload-side">
+                  <div className="form-field">
+                    <label>Title *</label>
+                    <input 
+                      type="text" 
+                      placeholder="Enter your design title..."
+                      value={uploadForm.title}
+                      onChange={(e) => setUploadForm({...uploadForm, title: e.target.value})}
+                    />
+                  </div>
+                  
+                  <div className="form-field">
+                    <label>Description</label>
+                    <textarea 
+                      placeholder="Describe your design, materials used, inspiration..."
+                      value={uploadForm.description}
+                      onChange={(e) => setUploadForm({...uploadForm, description: e.target.value})}
+                      rows="4"
+                    />
+                  </div>
+                  
+                  <div className="form-field">
+                    <label>Season</label>
+                    <select 
+                      value={uploadForm.season}
+                      onChange={(e) => setUploadForm({...uploadForm, season: e.target.value})}
+                    >
+                      <option>Spring 2026</option>
+                      <option>Summer 2026</option>
+                      <option>Fall 2026</option>
+                      <option>Winter 2026</option>
+                    </select>
+                  </div>
+                  
+                  <div className="upload-actions">
+                    <button 
+                      className="btn-secondary" 
+                      onClick={() => {
+                        resetUploadForm();
+                        setActiveTab("gallery");
+                      }}
+                    >
+                      CANCEL
+                    </button>
+                    <button 
+                      className="btn-primary upload-btn" 
+                      onClick={handleUpload}
+                      disabled={loading}
+                    >
+                      {loading ? "UPLOADING..." : "🚀 UPLOAD DESIGN"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* EDIT TAB - DIFFERENT LAYOUT */}
+        {activeTab === "edit" && (
+          <div className="upload-view edit-layout">
+            <div className="upload-container">
+              <div className="edit-header">
+                <h2>✏️ Edit Design</h2>
+                <p className="edit-subtitle">Update your existing design</p>
+                {editingDesign && (
+                  <div className="edit-meta">
+                    <span>Design ID: #{editingDesign.design_id}</span>
+                    <span>Created: {new Date(editingDesign.created_at).toLocaleDateString()}</span>
+                  </div>
+                )}
+              </div>
+              
+              <div className="edit-content">
+                {/* Edit has image on left, form on right but different styling */}
+                <div className="edit-image-section">
+                  <div className="current-image-label">Current Image</div>
+                  <div className="preview-frame edit-preview-box" onClick={() => fileInputRef.current?.click()}>
+                    <img src={editForm.imagePreview} alt="Preview" />
+                    <div className="upload-overlay">
+                      <span>📷 Click to Change Image</span>
+                    </div>
+                  </div>
+                  <p className="image-hint">Leave as-is to keep current image</p>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef}
+                    onChange={(e) => handleImageSelect(e, true)}
+                    accept="image/*"
+                    style={{ display: 'none' }}
                   />
                 </div>
                 
-                <div className="form-field">
-                  <label>Season</label>
-                  <select 
-                    value={uploadForm.season}
-                    onChange={(e) => setUploadForm({...uploadForm, season: e.target.value})}
-                  >
-                    <option>Spring 2026</option>
-                    <option>Summer 2026</option>
-                    <option>Fall 2026</option>
-                    <option>Winter 2026</option>
-                  </select>
-                </div>
-                
-                <div className="upload-actions">
-                  <button className="btn-secondary" onClick={() => setActiveTab("gallery")}>
-                    BACK
-                  </button>
-                  <button 
-                    className="btn-primary" 
-                    onClick={activeTab === "edit" ? handleUpdate : handleUpload}
-                    disabled={loading}
-                  >
-                    {loading ? "UPLOADING..." : (activeTab === "edit" ? "UPDATE" : "UPLOAD")}
-                  </button>
+                <div className="edit-form-section">
+                  <div className="form-field">
+                    <label>Title *</label>
+                    <input 
+                      type="text" 
+                      value={editForm.title}
+                      onChange={(e) => setEditForm({...editForm, title: e.target.value})}
+                    />
+                  </div>
+                  
+                  <div className="form-field">
+                    <label>Description</label>
+                    <textarea 
+                      value={editForm.description}
+                      onChange={(e) => setEditForm({...editForm, description: e.target.value})}
+                      rows="4"
+                    />
+                  </div>
+                  
+                  <div className="form-field">
+                    <label>Season</label>
+                    <select 
+                      value={editForm.season}
+                      onChange={(e) => setEditForm({...editForm, season: e.target.value})}
+                    >
+                      <option>Spring 2026</option>
+                      <option>Summer 2026</option>
+                      <option>Fall 2026</option>
+                      <option>Winter 2026</option>
+                    </select>
+                  </div>
+                  
+                  <div className="edit-actions">
+                    <button 
+                      className="btn-secondary" 
+                      onClick={() => {
+                        setEditingDesign(null);
+                        setActiveTab("gallery");
+                      }}
+                    >
+                      CANCEL
+                    </button>
+                    <button 
+                      className="btn-primary edit-btn" 
+                      onClick={handleUpdate}
+                      disabled={loading}
+                    >
+                      {loading ? "SAVING..." : "💾 SAVE CHANGES"}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -417,7 +553,7 @@ function Designer() {
           </div>
         )}
 
-        {/* PROFILE TAB - ENHANCED */}
+        {/* PROFILE TAB */}
         {activeTab === "profile" && (
           <div className="profile-view">
             <div className="profile-layout">

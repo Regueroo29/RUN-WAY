@@ -1,3 +1,4 @@
+{/* This is the main application component that sets up routing for different pages in the application. It uses React Router to define routes for Home, Preview, Login, Register, Path, Designer, DesignerProfile, Dashboard, Profile, and Admin pages. Each route is associated with a specific component that will be rendered when the route is accessed. */}
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
 import Preview from "./pages/Preview";
@@ -9,6 +10,8 @@ import DesignerProfile from "./pages/DesignerProfile";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile"; 
 import Admin from "./pages/Admin";  
+
+{/* Routes for different pages in the application */}
 
 function App() {
   return (
@@ -29,4 +32,5 @@ function App() {
   );
 }
 
+{/* Exporting the App component as the default export of this module. This allows other parts of the application to import and use the App component. */}
 export default App;
