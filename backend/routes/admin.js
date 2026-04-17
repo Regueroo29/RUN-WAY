@@ -126,7 +126,7 @@ router.post('/users/:id/suspend', async (req, res) => {
   try {
     const userId = req.params.id;
     const { reason, duration_days } = req.body;
-    const adminId = req.headers['user-id'];
+    const adminId = req.headers['user-id'] || req.user?.user_id; // Fix: use req.user from auth middleware
     
     if (!reason) return res.status(400).json({ error: 'Reason required' });
     
@@ -142,14 +142,18 @@ router.post('/users/:id/suspend', async (req, res) => {
       [adminId, userId, reason]
     );
     
-    const durationText = duration_days ? `${duration_days} days` : 'permanently';
-    await global.db.promise().query(
-      `INSERT INTO user_notifications (user_id, type, message) VALUES (?, 'suspension', ?)`,
-      [userId, `Account suspended ${durationText}. Reason: ${reason}`]
-    );
+    // Real-time: Force logout suspended user if online
+    if (global.io) {
+      global.io.to(`user_${userId}`).emit('account_suspended', {
+        reason: reason,
+        until: suspensionEnd,
+        message: `Account suspended ${duration_days ? `for ${duration_days} days` : 'permanently'}. Reason: ${reason}`
+      });
+    }
     
     res.json({ message: 'User suspended' });
   } catch (error) {
+    console.error('Suspend error:', error);
     res.status(500).json({ error: error.message });
   }
 });

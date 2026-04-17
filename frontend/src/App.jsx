@@ -17,7 +17,7 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<Home />} /> {/* Good already if neede will enhance */}
+        <Route path="/" element={<Home />} /> {/* Good already if needed will enhance */}
         <Route path="/preview" element={<Preview />} /> {/* no need to modify unless needed */}
         <Route path="/login" element={<Login />} /> {/* needed to enhance both the ui and the image placement also the text LOGIN */}
         <Route path="/register" element={<Register />} /> {/* register is already good with properly functioning form validation but could enhance the ui design */}

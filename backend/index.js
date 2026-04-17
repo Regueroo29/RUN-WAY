@@ -1,5 +1,7 @@
 require('dotenv').config(); // This MUST be first!
 
+const http = require('http');
+const { Server } = require('socket.io');
 const express = require("express");
 const cors = require("cors");
 const bcrypt = require("bcrypt");
@@ -7,6 +9,8 @@ const mysql = require("mysql2");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const { generateToken } = require('./middleware/auth');
+const connectedUsers = new Map();
 
 
 const app = express();
@@ -45,6 +49,7 @@ const storage = multer.diskStorage({
     cb(null, uniqueSuffix + path.extname(file.originalname));
   }
 });
+
 const upload = multer({ 
   storage: storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
@@ -129,9 +134,27 @@ app.post("/api/login", (req, res) => {
       if (result.length === 0) return res.status(401).json({ error: "User not found" });
       
       const user = result[0];
+      
+      // Check if suspended
+      if (user.status === 'suspended') {
+        if (user.suspension_end_date && new Date(user.suspension_end_date) > new Date()) {
+          return res.status(403).json({ 
+            error: "Account suspended", 
+            reason: user.suspension_reason,
+            until: user.suspension_end_date 
+          });
+        } else if (!user.suspension_end_date) {
+          return res.status(403).json({ 
+            error: "Account permanently suspended", 
+            reason: user.suspension_reason 
+          });
+        }
+      }
+      
       const match = await bcrypt.compare(password, user.password);
       if (!match) return res.status(401).json({ error: "Invalid password" });
 
+      const token = generateToken(user);
       logActivity(user.user_id, 'login');
       
       res.json({
@@ -147,7 +170,11 @@ app.post("/api/login", (req, res) => {
         instagram: user.instagram,
         facebook: user.facebook,
         twitter: user.twitter,
-        avatar_url: user.avatar_url ? `http://localhost:${PORT}${user.avatar_url}` : null
+        avatar_url: user.avatar_url ? `http://localhost:${PORT}${user.avatar_url}` : null,
+        status: user.status,
+        suspension_reason: user.suspension_reason,
+        suspension_end_date: user.suspension_end_date,
+        token: generateToken(user) // Send token to client
       });
     }
   );
@@ -437,6 +464,22 @@ app.post("/api/designs", upload.single("image"), (req, res) => {
       }
       
       logActivity(designer_id, 'upload_design', result.insertId, `Uploaded: ${title}`);
+      
+      const designData = {
+        design_id: result.insertId,
+        designer_id,
+        title,
+        description,
+        season,
+        image_url: `http://localhost:${PORT}${imageUrl}`,
+        created_at: new Date().toISOString()
+      };
+      
+      // Broadcast to all connected clients
+      if (global.io) {
+        global.io.emit('design_uploaded', designData);
+      }
+      
       res.json({ 
         message: "Design uploaded successfully", 
         design_id: result.insertId,
@@ -630,7 +673,26 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message });
 });
 
-// Server start
-app.listen(PORT, () => {
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: FRONTEND_URL,
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
+
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.id);
+  
+  socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
+    connectedUsers.delete(socket.userId);
+  });
+});
+
+global.io = io;
+
+server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });

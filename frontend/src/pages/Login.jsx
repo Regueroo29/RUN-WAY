@@ -25,7 +25,6 @@ function Login() {
       // Check if account is suspended
       if (userData.status === 'suspended') {
         if (userData.suspension_end_date && new Date(userData.suspension_end_date) < new Date()) {
-          // Auto-unsuspend if time expired
           userData.status = 'active';
         } else {
           const endDate = userData.suspension_end_date 
@@ -37,16 +36,18 @@ function Login() {
         }
       }
       
-      localStorage.setItem("user", JSON.stringify(userData));
+      // SAVE USER WITH TOKEN - Fixed this line
+      localStorage.setItem("user", JSON.stringify({
+        ...userData,
+        token: userData.token  // This saves the JWT token
+      }));
 
       // Check for notifications
       try {
         const notifRes = await API.get(`/admin/notifications/${userData.user_id}`);
         if (notifRes.data.length > 0) {
-          // Show notifications
           notifRes.data.forEach(notif => {
             alert(`📢 ${notif.message}`);
-            // Mark as read
             API.post(`/admin/notifications/${notif.notification_id}/read`);
           });
         }

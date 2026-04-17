@@ -88,8 +88,9 @@ function Dashboard() {
     if (!user) return;
 
     const isLiked = likedDesigns.includes(designId);
+    const design = designs.find(d => d.design_id === designId);
     
-    // Optimistic update
+    // Optimistic update - update UI immediately
     if (isLiked) {
       setLikedDesigns(likedDesigns.filter(id => id !== designId));
       setDesigns(designs.map(d => 
@@ -98,28 +99,39 @@ function Dashboard() {
           : d
       ));
     } else {
-      setLikedDesigns([designId, ...likedDesigns]); // Add to beginning for recent order
+      setLikedDesigns([designId, ...likedDesigns]);
       setDesigns(designs.map(d => 
         d.design_id === designId 
           ? { ...d, like_count: (d.like_count || 0) + 1 }
           : d
       ));
-    }
-
-    if (selectedDesign?.design_id === designId) {
-      setSelectedDesign(prev => ({
-        ...prev,
-        like_count: isLiked ? Math.max(0, (prev.like_count || 0) - 1) : (prev.like_count || 0) + 1
-      }));
+      
+      // Animation effect
+      const btn = e?.target;
+      if (btn) {
+        btn.classList.add('heart-animation');
+        setTimeout(() => btn.classList.remove('heart-animation'), 1000);
+      }
     }
 
     try {
-      await API.post("/likes/toggle", {
+      const res = await API.post("/likes/toggle", {
         user_id: user.user_id,
         design_id: designId
       });
+      
+      // Emit real-time update
+      if (socket) {
+        socket.emit('like_design', {
+          design_id: designId,
+          like_count: isLiked ? (design.like_count - 1) : (design.like_count + 1),
+          user_id: user.user_id
+        });
+      }
     } catch (err) {
-      fetchData(user.user_id);
+      // Rollback on error
+      console.error("Like error:", err);
+      fetchData(user.user_id); // Refetch to correct state
     }
   };
 
@@ -241,6 +253,11 @@ function Dashboard() {
       });
   };
 
+  useEffect(() => {
+    console.log("Current designs:", designs);
+    console.log("Designs count:", designs.length);
+  }, [designs]);
+
   if (!user) return null;
   if (loading) return <div className="loading">Loading...</div>;
 
@@ -286,6 +303,9 @@ function Dashboard() {
       </header>
 
       <main className="discovery-main">
+        <div style={{color: 'lime', padding: '10px', background: 'rgba(0,0,0,0.8)'}}>
+            Designs loaded: {designs.length} | Tab: {activeTab}
+        </div>
         {activeTab === "activity" ? (
           <div className="activity-section">
             <h3>Your Liked Designs</h3>
@@ -316,6 +336,12 @@ function Dashboard() {
           </div>
         ) : (
           <>
+            {designs.length === 0 && (
+              <div style={{color: 'white', textAlign: 'center', padding: '40px'}}>
+                No designs found in database
+              </div>
+            )}
+
             {activeTab === "foryou" && getFilteredDesigns().length === 0 && (
               <div className="empty-state">
                 <p>Follow designers or check back for new posts from the last week!</p>

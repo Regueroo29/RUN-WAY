@@ -1,8 +1,10 @@
-import { useState, useEffect, useRef } from "react"; {/* THESE 3 CODES AT THE TOP ARE THE ONES THAT ARE IMPORTING THE LIBRARIES THAT TYPE SHI JAHAHAH */}
+import { useState, useEffect, useRef } from "react"; {/* THESE CODES AT THE TOP ARE THE ONES THAT ARE IMPORTING THE LIBRARIES THAT TYPE SHI JAHAHAH */}
 import { useNavigate, Link } from "react-router-dom";
+import { useSocket } from '../context/SocketContext';
 import API from "../services/api";
 
 function Designer() {
+  const socket = useSocket();
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState("gallery");
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -55,6 +57,19 @@ function Designer() {
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    if (!socket) return;
+    
+    socket.on('design_uploaded', (data) => {
+      // If it's not our own design, we could show a notification
+      if (data.designer_id !== user?.user_id) {
+        console.log('New design uploaded by:', data.designer_name);
+      }
+    });
+    
+    return () => socket.off('design_uploaded');
+  }, [socket, user]);
+
   const fetchFreshUserData = async () => {
     try {
       const res = await API.get(`/users/${user.user_id}`);
@@ -67,6 +82,36 @@ function Designer() {
       console.error("Error fetching fresh user data:", err);
     }
   };
+
+  useEffect(() => {
+    if (!socket) return;
+    
+    socket.on('account_suspended', (data) => {
+      alert(`Account suspended!\n${data.message}`);
+      localStorage.removeItem('user');
+      navigate('/login');
+    });
+    
+    // Real-time like updates
+    socket.on('design_liked', (data) => {
+      setDesigns(prev => prev.map(d => 
+        d.design_id === data.design_id 
+          ? { ...d, like_count: data.like_count }
+          : d
+      ));
+    });
+    
+    return () => {
+      socket.off('account_suspended');
+      socket.off('design_liked');
+    };
+  }, [socket, navigate]);
+
+  useEffect(() => {
+    console.log("Designs loaded:", designs.length);
+    console.log("Active tab:", activeTab);
+    console.log("User:", user);
+  }, [designs, activeTab, user]);
 
   const fetchDesigns = async (userId) => {
     try {
@@ -130,14 +175,39 @@ function Designer() {
       formData.append("description", uploadForm.description);
       formData.append("season", uploadForm.season);
       
-      // FIX: Remove /api prefix since your base URL already has it
-      await API.post("/designs", formData, {
+      const res = await API.post("/designs", formData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
       
-      alert("Design uploaded successfully!");
+      // Emit real-time event to all clients
+      if (socket) {
+        socket.emit('new_design', {
+          design_id: res.data.design_id,
+          designer_id: user.user_id,
+          designer_name: user.username,
+          title: uploadForm.title,
+          image_url: res.data.image_url,
+          season: uploadForm.season,
+          created_at: new Date().toISOString()
+        });
+      }
+      
+      // Optimistic UI update - add to gallery immediately
+      const newDesign = {
+        design_id: res.data.design_id,
+        title: uploadForm.title,
+        description: uploadForm.description,
+        season: uploadForm.season,
+        image_url: res.data.image_url,
+        like_count: 0,
+        avg_rating: 0,
+        rating_count: 0,
+        created_at: new Date().toISOString()
+      };
+      
+      setDesigns(prev => [newDesign, ...prev]);
+      
       setActiveTab("gallery");
-      fetchDesigns(user.user_id);
       resetUploadForm();
     } catch (err) {
       console.error("Upload error:", err);
