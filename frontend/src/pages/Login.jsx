@@ -58,11 +58,31 @@ function Login() {
       // Redirect based on role
       if (userData.role === 'admin') {
         navigate("/admin");
+      } else if (userData.role === 'designer') {
+        navigate("/designer"); // or "/designer/:id"
       } else {
-        navigate("/path");
+        navigate("/dashboard"); // visitors go straight to discovery
       }
     } catch (err) {
-      setError(err.response?.data?.error || "Invalid email or password");
+      // More robust error extraction
+      let msg = "Invalid email or password";
+      
+      if (err.response) {
+        // Backend sent a response with error
+        msg = err.response.data?.error || err.response.data?.message || msg;
+        
+        // Specific handling for suspension to show the date nicely
+        if (err.response.status === 403 && err.response.data?.reason) {
+          const until = err.response.data?.until 
+            ? new Date(err.response.data.until).toLocaleDateString() 
+            : 'permanently';
+          msg = `Account suspended until ${until}. Reason: ${err.response.data.reason}`;
+        }
+      } else if (err.request) {
+        msg = "Cannot connect to server. Please try again.";
+      }
+      
+      setError(msg);
       setLoading(false);
     }
   };

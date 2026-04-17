@@ -100,14 +100,35 @@ const logActivity = (user_id, action_type, target_id = null, details = '') => {
 };
 
 // ================= AUTH =================
-
 app.post("/api/register", async (req, res) => {
-  const { username, email, password, role } = req.body;
+  const { first_name, last_name, email, password, role, date_of_birth, gender } = req.body;
+  
+  // Validation
+  if (!first_name || !last_name || !email || !password || !role) {
+    return res.status(400).json({ error: "Please fill in all required fields" });
+  }
+  
+  if (!['visitor', 'designer'].includes(role)) {
+    return res.status(400).json({ error: "Please select a valid role" });
+  }
+  
+  // NEW: Password complexity check (only for new registrations)
+  const passErrors = validatePassword(password);
+  if (passErrors.length > 0) {
+    return res.status(400).json({ 
+      error: `Password must contain ${passErrors.join(", ")}` 
+    });
+  }
+  
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
+    const username = `${first_name} ${last_name}`;
+    
     db.query(
-      "INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)",
-      [username, email, hashedPassword, role || 'visitor'],
+      `INSERT INTO users 
+       (username, first_name, last_name, email, password, role, date_of_birth, gender) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [username, first_name, last_name, email, hashedPassword, role, date_of_birth || null, gender || null],
       (err, result) => {
         if (err) {
           if (err.code === 'ER_DUP_ENTRY') {
@@ -115,8 +136,12 @@ app.post("/api/register", async (req, res) => {
           }
           return res.status(500).json({ error: err.message });
         }
-        logActivity(result.insertId, 'register', null, `New ${role || 'visitor'} registered`);
-        res.json({ message: "User registered", user_id: result.insertId });
+        logActivity(result.insertId, 'register', null, `New ${role} registered`);
+        res.json({ 
+          message: "User registered successfully", 
+          user_id: result.insertId,
+          role: role 
+        });
       }
     );
   } catch (err) {
@@ -137,16 +162,25 @@ app.post("/api/login", (req, res) => {
       
       // Check if suspended
       if (user.status === 'suspended') {
-        if (user.suspension_end_date && new Date(user.suspension_end_date) > new Date()) {
+        const now = new Date();
+        const endDate = user.suspension_end_date ? new Date(user.suspension_end_date) : null;
+        
+        // If suspension expired, auto-reactivate
+        if (endDate && endDate < now) {
+          db.query("UPDATE users SET status='active', suspension_reason=NULL, suspension_end_date=NULL WHERE user_id=?", [user.user_id]);
+          user.status = 'active'; // continue login
+        } else if (!endDate) {
+          // Permanent suspension
+          return res.status(403).json({ 
+            error: "Account permanently suspended", 
+            reason: user.suspension_reason 
+          });
+        } else {
+          // Active timed suspension
           return res.status(403).json({ 
             error: "Account suspended", 
             reason: user.suspension_reason,
             until: user.suspension_end_date 
-          });
-        } else if (!user.suspension_end_date) {
-          return res.status(403).json({ 
-            error: "Account permanently suspended", 
-            reason: user.suspension_reason 
           });
         }
       }
@@ -642,12 +676,17 @@ app.get("/api/health", (req, res) => {
 });
 
 // ================= PASSWORD CHANGE =================
+// Update password change to ALSO enforce complexity (existing users changing pw will hit this)
 app.put("/api/users/:id/password", async (req, res) => {
   const userId = req.params.id;
   const { currentPassword, newPassword } = req.body;
   
-  if (!newPassword || newPassword.length < 6) {
-    return res.status(400).json({ error: "Password must be at least 6 characters" });
+  // NEW: Validate complexity for password changes
+  const passErrors = validatePassword(newPassword);
+  if (passErrors.length > 0) {
+    return res.status(400).json({ 
+      error: `Password must contain ${passErrors.join(", ")}` 
+    });
   }
   
   db.query("SELECT password FROM users WHERE user_id = ?", [userId], async (err, result) => {
@@ -667,11 +706,52 @@ app.put("/api/users/:id/password", async (req, res) => {
   });
 });
 
+// Switch Role - ADMIN ONLY (protect this)
+app.post("/api/users/:id/switch-role", async (req, res) => {
+  const userId = req.params.id;
+  const { new_role } = req.body;
+  const adminId = req.headers['user-id'];
+  
+  // Verify admin is making the request
+  if (!adminId) return res.status(401).json({ error: "Not authenticated" });
+  
+  db.query("SELECT role FROM users WHERE user_id = ?", [adminId], (err, result) => {
+    if (err || result.length === 0 || result[0].role !== 'admin') {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    
+    if (!['visitor', 'designer', 'admin'].includes(new_role)) {
+      return res.status(400).json({ error: "Invalid role" });
+    }
+    
+    db.query(
+      "UPDATE users SET role = ? WHERE user_id = ?",
+      [new_role, userId],
+      (err, result) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (result.affectedRows === 0) return res.status(404).json({ error: "User not found" });
+        
+        logActivity(userId, 'switch_role', null, `Admin changed role to ${new_role}`);
+        res.json({ message: "Role updated successfully", new_role });
+      }
+    );
+  });
+});
+
 // Error handling
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ error: err.message });
 });
+
+const validatePassword = (password) => {
+  const errors = [];
+  if (password.length < 8) errors.push("at least 8 characters");
+  if (!/[A-Z]/.test(password)) errors.push("one uppercase letter");
+  if (!/[0-9]/.test(password)) errors.push("one number");
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) errors.push("one special character");
+  return errors;
+};
 
 const server = http.createServer(app);
 const io = new Server(server, {

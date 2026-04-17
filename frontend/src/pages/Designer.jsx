@@ -325,21 +325,6 @@ function Designer() {
     }
   };
 
-  const handleSwitchRole = async () => {
-    const newRole = 'visitor';
-    if (window.confirm("Switch to Visitor account? You'll be redirected to the discovery feed.")) {
-      try {
-        await API.post(`/users/${user.user_id}/switch-role`, { new_role: newRole });
-        const updatedUser = { ...user, role: newRole };
-        setUser(updatedUser);
-        localStorage.setItem("user", JSON.stringify(updatedUser));
-        navigate('/dashboard');
-      } catch (err) {
-        alert(err.response?.data?.error || "Error switching role");
-      }
-    }
-  };
-
   const handleLogout = () => {
     localStorage.removeItem("user");
     navigate("/");
