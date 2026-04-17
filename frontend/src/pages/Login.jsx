@@ -100,11 +100,11 @@ function Login() {
           <img src="/login.jpg" alt="Fashion" />
         </div>
         {/* ✅ VERTICAL TEXT AROUND CIRCLE */}
-        <div className="vertical-text left">L</div>
-        <div className="vertical-text top-left">O</div>
-        <div className="vertical-text top">G</div>
-        <div className="vertical-text top-right">I</div>
-        <div className="vertical-text right">N</div>
+        <div className="vertical-text top">L</div> {/* needs to be top */}
+        <div className="vertical-text top-right">O</div> {/* needs to be top right */}
+        <div className="vertical-text right">G</div> {/* needs to be right */}
+        <div className="vertical-text bottom-right">I</div> {/* needs to be bottom right */}
+        <div className="vertical-text bottom">N</div> {/* needs to be bottom */}
         
         <div className="split-brand-vertical">RUN-WAY</div>
       </div>

@@ -461,18 +461,33 @@ app.put("/api/designs/:id", (req, res) => {
   );
 });
 
+// ================= DELETE DESIGN =================
 app.delete("/api/designs/:id", (req, res) => {
   const designId = req.params.id;
   const designerId = req.query.designerId;
-  
+
+  if (!designerId) {
+    return res.status(400).json({ error: "Designer ID required" });
+  }
+
   db.query(
     "DELETE FROM designs WHERE design_id = ? AND designer_id = ?",
     [designId, designerId],
     (err, result) => {
       if (err) return res.status(500).json({ error: err.message });
-      if (result.affectedRows === 0) return res.status(403).json({ error: "Unauthorized or not found" });
-      
-      logActivity(designerId, 'delete_design', designId);
+      if (result.affectedRows === 0)
+        return res.status(403).json({ error: "Unauthorized or not found" });
+
+      logActivity(designerId, "delete_design", designId);
+
+      // Real-time removal from all designer galleries
+      if (global.io) {
+        global.io.emit("design_deleted", {
+          design_id: parseInt(designId),
+          designer_id: parseInt(designerId),
+        });
+      }
+
       res.json({ message: "Design deleted" });
     }
   );
@@ -524,22 +539,39 @@ app.post("/api/designs", upload.single("image"), (req, res) => {
 });
 
 // ================= LIKES =================
-
 app.post("/api/likes/toggle", (req, res) => {
   const { user_id, design_id } = req.body;
-  
+
   db.query(
     "SELECT * FROM likes WHERE user_id = ? AND design_id = ?",
     [user_id, design_id],
     (err, result) => {
       if (err) return res.status(500).json({ error: err.message });
-      
+
+      const broadcast = (liked) => {
+        db.query(
+          "SELECT COUNT(*) as count FROM likes WHERE design_id = ?",
+          [design_id],
+          (err, countRes) => {
+            if (!err && global.io) {
+              global.io.emit("design_liked", {
+                design_id: parseInt(design_id),
+                like_count: countRes[0].count,
+                user_id: parseInt(user_id),
+                liked,
+              });
+            }
+          }
+        );
+      };
+
       if (result.length > 0) {
         db.query(
           "DELETE FROM likes WHERE user_id = ? AND design_id = ?",
           [user_id, design_id],
           (err) => {
             if (err) return res.status(500).json({ error: err.message });
+            broadcast(false);
             res.json({ liked: false, message: "Unliked" });
           }
         );
@@ -549,7 +581,8 @@ app.post("/api/likes/toggle", (req, res) => {
           [user_id, design_id],
           (err) => {
             if (err) return res.status(500).json({ error: err.message });
-            logActivity(user_id, 'like_design', design_id);
+            logActivity(user_id, "like_design", design_id);
+            broadcast(true);
             res.json({ liked: true, message: "Liked" });
           }
         );
@@ -576,25 +609,42 @@ app.get("/api/users/:id/likes", (req, res) => {
 });
 
 // ================= RATINGS =================
-
 app.post("/api/ratings", (req, res) => {
   const { user_id, design_id, rating } = req.body;
-  
-  if (rating < 1 || rating > 5) return res.status(400).json({ error: "Rating must be 1-5" });
-  
+
+  if (rating < 1 || rating > 5)
+    return res.status(400).json({ error: "Rating must be 1-5" });
+
+  const broadcast = () => {
+    db.query(
+      "SELECT AVG(rating) as avg_rating, COUNT(*) as rating_count FROM ratings WHERE design_id = ?",
+      [design_id],
+      (err, statsResult) => {
+        if (!err && global.io) {
+          global.io.emit("design_rated", {
+            design_id: parseInt(design_id),
+            avg_rating: statsResult[0].avg_rating,
+            rating_count: statsResult[0].rating_count,
+          });
+        }
+      }
+    );
+  };
+
   db.query(
     "SELECT * FROM ratings WHERE user_id = ? AND design_id = ?",
     [user_id, design_id],
     (err, result) => {
       if (err) return res.status(500).json({ error: err.message });
-      
+
       if (result.length > 0) {
         db.query(
           "UPDATE ratings SET rating = ? WHERE user_id = ? AND design_id = ?",
           [rating, user_id, design_id],
           (err) => {
             if (err) return res.status(500).json({ error: err.message });
-            logActivity(user_id, 'rate_design', design_id, `Rated ${rating} stars`);
+            logActivity(user_id, "rate_design", design_id, `Rated ${rating} stars`);
+            broadcast();
             res.json({ message: "Rating updated" });
           }
         );
@@ -604,7 +654,8 @@ app.post("/api/ratings", (req, res) => {
           [user_id, design_id, rating],
           (err) => {
             if (err) return res.status(500).json({ error: err.message });
-            logActivity(user_id, 'rate_design', design_id, `Rated ${rating} stars`);
+            logActivity(user_id, "rate_design", design_id, `Rated ${rating} stars`);
+            broadcast();
             res.json({ message: "Rating added" });
           }
         );
@@ -614,7 +665,6 @@ app.post("/api/ratings", (req, res) => {
 });
 
 // ================= FOLLOWS =================
-
 app.post("/api/follows/toggle", (req, res) => {
   const { follower_id, designer_id } = req.body;
   

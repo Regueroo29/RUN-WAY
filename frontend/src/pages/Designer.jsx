@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react"; {/* THESE CODES AT THE TOP ARE THE ONES THAT ARE IMPORTING THE LIBRARIES THAT TYPE SHI JAHAHAH */}
+import { useState, useEffect, useRef, useMemo } from "react"; {/* THESE CODES AT THE TOP ARE THE ONES THAT ARE IMPORTING THE LIBRARIES THAT TYPE SHI JAHAHAH */}
 import { useNavigate, Link } from "react-router-dom";
 import { useSocket } from '../context/SocketContext';
 import API from "../services/api";
@@ -85,27 +85,59 @@ function Designer() {
 
   useEffect(() => {
     if (!socket) return;
-    
-    socket.on('account_suspended', (data) => {
+
+    socket.on("design_uploaded", (data) => {
+      if (data.designer_id !== user?.user_id) {
+        console.log("New design uploaded by:", data.designer_name);
+      }
+    });
+
+    socket.on("design_liked", (data) => {
+      setDesigns((prev) =>
+        prev.map((d) =>
+          d.design_id === data.design_id
+            ? { ...d, like_count: data.like_count }
+            : d
+        )
+      );
+    });
+
+    socket.on("design_rated", (data) => {
+      setDesigns((prev) =>
+        prev.map((d) =>
+          d.design_id === data.design_id
+            ? {
+                ...d,
+                avg_rating: data.avg_rating,
+                rating_count: data.rating_count,
+              }
+            : d
+        )
+      );
+    });
+
+    socket.on("design_deleted", (data) => {
+      if (data.designer_id === user?.user_id) {
+        setDesigns((prev) =>
+          prev.filter((d) => d.design_id !== data.design_id)
+        );
+      }
+    });
+
+    socket.on("account_suspended", (data) => {
       alert(`Account suspended!\n${data.message}`);
-      localStorage.removeItem('user');
-      navigate('/login');
+      localStorage.removeItem("user");
+      navigate("/login");
     });
-    
-    // Real-time like updates
-    socket.on('design_liked', (data) => {
-      setDesigns(prev => prev.map(d => 
-        d.design_id === data.design_id 
-          ? { ...d, like_count: data.like_count }
-          : d
-      ));
-    });
-    
+
     return () => {
-      socket.off('account_suspended');
-      socket.off('design_liked');
+      socket.off("design_uploaded");
+      socket.off("design_liked");
+      socket.off("design_rated");
+      socket.off("design_deleted");
+      socket.off("account_suspended");
     };
-  }, [socket, navigate]);
+  }, [socket, user, navigate]);
 
   useEffect(() => {
     console.log("Designs loaded:", designs.length);
@@ -330,14 +362,33 @@ function Designer() {
     navigate("/");
   };
 
-  const stats = {
-    totalViews: designs.reduce((acc, d) => acc + (d.view_count || 0), 0),
-    totalLikes: designs.reduce((acc, d) => acc + (d.like_count || 0), 0),
-    avgRating: designs.filter(d => d.avg_rating && d.avg_rating > 0).length > 0 
-      ? (designs.filter(d => d.avg_rating && d.avg_rating > 0).reduce((acc, d) => acc + (d.avg_rating || 0), 0) / designs.filter(d => d.avg_rating && d.avg_rating > 0).length).toFixed(1)
-      : 0,
-    followerCount: user?.follower_count || 0
-  };
+  const stats = useMemo(() => {
+    const ratedDesigns = designs.filter((d) => {
+      const r = Number(d.avg_rating);
+      return !isNaN(r) && r > 0;
+    });
+
+    const ratingSum = ratedDesigns.reduce(
+      (sum, d) => sum + Number(d.avg_rating || 0),
+      0
+    );
+
+    return {
+      totalViews: designs.reduce(
+        (acc, d) => acc + (Number(d.view_count) || 0),
+        0
+      ),
+      totalLikes: designs.reduce(
+        (acc, d) => acc + (Number(d.like_count) || 0),
+        0
+      ),
+      avgRating:
+        ratedDesigns.length > 0
+          ? (ratingSum / ratedDesigns.length).toFixed(1)
+          : "0.0",
+      followerCount: Number(user?.follower_count) || 0,
+    };
+  }, [designs, user]);
 
   if (!user) return null;
 

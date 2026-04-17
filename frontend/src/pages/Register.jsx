@@ -101,7 +101,9 @@ function Register() {
         </div>
 
         <div className="split-form-container register-enhanced">
-          <h2>ACCOUNT<br/>SIGN UP</h2>
+          <h2 style={{ marginBottom: '16px', lineHeight: 1.1 }}>
+            ACCOUNT<br />SIGN UP
+          </h2>
           
           {error && <div className="error-message">{error}</div>}
 
@@ -124,7 +126,6 @@ function Register() {
                 onChange={(e) => setFirstName(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="First name"
-                autoFocus
               />
             </div>
             <div className="form-group compact">
