@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import API from "../services/api";
 import "./Dashboard.css";
@@ -29,11 +29,9 @@ function Dashboard() {
       const res = await API.get(`/designs?userId=${userId}`);
       const allDesigns = res.data;
       
-      // Get liked designs
       const liked = allDesigns.filter(d => d.is_liked).map(d => d.design_id);
       setLikedDesigns(liked);
       
-      // Get following list
       const designerIds = [...new Set(allDesigns.map(d => d.designer_id))];
       const followingChecks = await Promise.all(
         designerIds.map(async (id) => {
@@ -59,12 +57,10 @@ function Dashboard() {
   // Filter designs based on active tab
   const getFilteredDesigns = () => {
     if (activeTab === "trending") {
-      // Sort by likes + ratings but shuffle slightly for Pinterest feel
       return [...designs].sort((a, b) => {
         const scoreA = (a.like_count || 0) + (a.avg_rating || 0) * 10;
         const scoreB = (b.like_count || 0) + (b.avg_rating || 0) * 10;
-        const randomFactor = Math.random() * 5;
-        return (scoreB + randomFactor) - (scoreA + randomFactor);
+        return scoreB - scoreA;
       });
     }
     
@@ -83,14 +79,39 @@ function Dashboard() {
     return designs;
   };
 
+  // Group liked designs by designer (most recently liked designers first)
+  const groupedActivity = useMemo(() => {
+    const likedInOrder = likedDesigns
+      .map(id => designs.find(d => d.design_id === id))
+      .filter(Boolean);
+    
+    const groups = [];
+    const seenDesigners = new Set();
+    
+    likedInOrder.forEach(design => {
+      if (!seenDesigners.has(design.designer_id)) {
+        seenDesigners.add(design.designer_id);
+        groups.push({
+          designer: {
+            designer_id: design.designer_id,
+            designer_name: design.designer_name,
+            brand_name: design.brand_name,
+            designer_avatar: design.designer_avatar
+          },
+          designs: likedInOrder.filter(d => d.designer_id === design.designer_id)
+        });
+      }
+    });
+    
+    return groups;
+  }, [likedDesigns, designs]);
+
   const handleLike = async (designId, e) => {
     if (e) e.stopPropagation();
     if (!user) return;
 
     const isLiked = likedDesigns.includes(designId);
-    const design = designs.find(d => d.design_id === designId);
     
-    // Optimistic update - update UI immediately
     if (isLiked) {
       setLikedDesigns(likedDesigns.filter(id => id !== designId));
       setDesigns(designs.map(d => 
@@ -105,33 +126,16 @@ function Dashboard() {
           ? { ...d, like_count: (d.like_count || 0) + 1 }
           : d
       ));
-      
-      // Animation effect
-      const btn = e?.target;
-      if (btn) {
-        btn.classList.add('heart-animation');
-        setTimeout(() => btn.classList.remove('heart-animation'), 1000);
-      }
     }
 
     try {
-      const res = await API.post("/likes/toggle", {
+      await API.post("/likes/toggle", {
         user_id: user.user_id,
         design_id: designId
       });
-      
-      // Emit real-time update
-      if (socket) {
-        socket.emit('like_design', {
-          design_id: designId,
-          like_count: isLiked ? (design.like_count - 1) : (design.like_count + 1),
-          user_id: user.user_id
-        });
-      }
     } catch (err) {
-      // Rollback on error
       console.error("Like error:", err);
-      fetchData(user.user_id); // Refetch to correct state
+      fetchData(user.user_id);
     }
   };
 
@@ -205,7 +209,7 @@ function Dashboard() {
   };
 
   const navigateToDesigner = (designerId, e) => {
-    e.stopPropagation();
+    if (e) e.stopPropagation();
     navigate(`/designer/${designerId}`);
   };
 
@@ -241,22 +245,6 @@ function Dashboard() {
       </div>
     );
   };
-
-  // Sort liked designs by most recent (leftmost = most recent)
-  const getSortedLikedDesigns = () => {
-    return designs
-      .filter(d => likedDesigns.includes(d.design_id))
-      .sort((a, b) => {
-        const indexA = likedDesigns.indexOf(a.design_id);
-        const indexB = likedDesigns.indexOf(b.design_id);
-        return indexA - indexB; // Most recent first (left side)
-      });
-  };
-
-  useEffect(() => {
-    console.log("Current designs:", designs);
-    console.log("Designs count:", designs.length);
-  }, [designs]);
 
   if (!user) return null;
   if (loading) return <div className="loading">Loading...</div>;
@@ -303,41 +291,78 @@ function Dashboard() {
       </header>
 
       <main className="discovery-main">
-        <div style={{color: 'lime', padding: '10px', background: 'rgba(0,0,0,0.8)'}}>
-            Designs loaded: {designs.length} | Tab: {activeTab}
-        </div>
         {activeTab === "activity" ? (
           <div className="activity-section">
-            <h3>Your Liked Designs</h3>
-            {likedDesigns.length === 0 ? (
-              <p>No activity yet. Start exploring!</p>
-            ) : (
-              <div className="activity-horizontal">
-                {getSortedLikedDesigns().map(design => (
-                  <div 
-                    key={design.design_id} 
-                    className="design-card activity-card"
-                    onClick={() => setSelectedDesign(design)}
-                  >
-                    <div className="design-image">
-                      <img 
-                        src={`${design.image_url}?t=${design.updated_at || Date.now()}`} 
-                        alt={design.title} 
-                      />
-                    </div>
-                    <div className="design-info">
-                      <h3>{design.title}</h3>
-                      <p>By {design.designer_name}</p>
-                    </div>
-                  </div>
-                ))}
+            {groupedActivity.length === 0 ? (
+              <div className="empty-state">
+                <p>No activity yet. Start exploring and liking designs!</p>
               </div>
+            ) : (
+              groupedActivity.map(group => (
+                <div key={group.designer.designer_id} className="activity-designer-group">
+                  <div 
+                    className="activity-designer-header"
+                    onClick={(e) => navigateToDesigner(group.designer.designer_id, e)}
+                  >
+                    {group.designer.designer_avatar ? (
+                      <img 
+                        src={group.designer.designer_avatar} 
+                        alt={group.designer.designer_name} 
+                        className="activity-designer-avatar" 
+                      />
+                    ) : (
+                      <div className="activity-designer-avatar-placeholder">
+                        {group.designer.designer_name?.[0]?.toUpperCase()}
+                      </div>
+                    )}
+                    <div className="activity-designer-info">
+                      <h4>{group.designer.brand_name || group.designer.designer_name}</h4>
+                      <p>
+                        @{group.designer.designer_name} • {group.designs.length} liked {group.designs.length === 1 ? 'design' : 'designs'}
+                      </p>
+                    </div>
+                    <span className="activity-arrow">→</span>
+                  </div>
+                  
+                  <div className="activity-designer-grid">
+                    {group.designs.map(design => (
+                      <div 
+                        key={design.design_id} 
+                        className="design-card"
+                        onClick={() => setSelectedDesign(design)}
+                      >
+                        <div className="design-image">
+                          <img 
+                            src={`${design.image_url}?t=${design.updated_at || Date.now()}`} 
+                            alt={design.title} 
+                          />
+                          <button 
+                            className={`heart-btn liked`}
+                            onClick={(e) => handleLike(design.design_id, e)}
+                          >
+                            ♥
+                          </button>
+                        </div>
+                        <div className="design-info">
+                          <h3>{design.title}</h3>
+                          <p>{design.season}</p>
+                          <div className="design-stats">
+                            <span>❤️ {design.like_count || 0}</span>
+                            <span>⭐ {design.rating_count || 0} ratings</span>
+                          </div>
+                          {renderStars(design)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))
             )}
           </div>
         ) : (
           <>
             {designs.length === 0 && (
-              <div style={{color: 'white', textAlign: 'center', padding: '40px'}}>
+              <div className="empty-state">
                 No designs found in database
               </div>
             )}
@@ -348,15 +373,11 @@ function Dashboard() {
               </div>
             )}
             
-            <div className="discovery-grid pinterest-style">
-              {getFilteredDesigns().map((design, index) => (
+            <div className="discovery-grid">
+              {getFilteredDesigns().map((design) => (
                 <div 
                   key={design.design_id} 
                   className="design-card"
-                  style={{ 
-                    gridRow: index % 3 === 0 ? 'span 2' : 'span 1',
-                    height: index % 3 === 0 ? '500px' : '350px'
-                  }}
                   onClick={() => setSelectedDesign(design)}
                 >
                   <div className="design-image">

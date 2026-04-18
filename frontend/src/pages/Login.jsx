@@ -97,14 +97,14 @@ function Login() {
     <div className="auth-split-page">
       <div className="split-image-side">
         <div className="split-image-circle">
-          <img src="/login.jpg" alt="Fashion" />
+          <img src="/classic.jpg" alt="Fashion" />
         </div>
         {/* ✅ VERTICAL TEXT AROUND CIRCLE */}
-        <div className="vertical-text top">L</div> {/* needs to be top */}
-        <div className="vertical-text top-right">O</div> {/* needs to be top right */}
-        <div className="vertical-text right">G</div> {/* needs to be right */}
-        <div className="vertical-text bottom-right">I</div> {/* needs to be bottom right */}
-        <div className="vertical-text bottom">N</div> {/* needs to be bottom */}
+        <div className="vertical-text top">L</div> 
+        <div className="vertical-text top-right">O</div> 
+        <div className="vertical-text right">G</div> 
+        <div className="vertical-text bottom-right">I</div> 
+        <div className="vertical-text bottom">N</div> 
         
         <div className="split-brand-vertical">RUN-WAY</div>
       </div>

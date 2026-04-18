@@ -1,24 +1,38 @@
-/* Profile Page - Perfect Center Fit (No Scrollbars) */
+/* Profile Page - Perfect Center Fit  */
 .profile-full {
   background: linear-gradient(135deg, #1a0a0a 0%, #2a1a1a 100%);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow: hidden; /* Prevent any scrolling */
 }
 
 /* Fixed header (80px) and bottom nav (60px) = 140px total */
 .profile-main-custom {
   flex: 1;
-  margin-top: 80px; /* Header height */
-  margin-bottom: 60px; /* Bottom nav height */
+  margin-top: 80px;           /* header */
+  margin-bottom: 60px;        /* bottom nav */
   height: calc(100vh - 140px);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 20px;
   box-sizing: border-box;
-  overflow: hidden; /* No scrolling */
+  overflow-y: auto;           /* KEY: allow scroll */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(160, 120, 90, 0.4) transparent;
+}
+
+.profile-main-custom::-webkit-scrollbar {
+  width: 8px;
+}
+
+.profile-main-custom::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.profile-main-custom::-webkit-scrollbar-thumb {
+  background: rgba(160, 120, 90, 0.4);
+  border-radius: 4px;
 }
 
 .visitor-profile-new {
@@ -164,16 +178,19 @@
 
 /* Content Card - Compact layout */
 .profile-content-card {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 16px;
-  padding: 30px; /* Reduced from 40px */
-  height: fit-content;
+  overflow-y: auto;
   max-height: calc(100vh - 180px);
-  overflow: hidden; /* No internal scrolling */
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(160, 120, 90, 0.3) transparent;
+}
+
+.profile-content-card::-webkit-scrollbar {
+  width: 6px;
+}
+
+.profile-content-card::-webkit-scrollbar-thumb {
+  background: rgba(160, 120, 90, 0.3);
+  border-radius: 4px;
 }
 
 .section-title {
@@ -373,14 +390,23 @@
   border-radius: 50%;
 }
 
-/* Ensure no scrollbars anywhere */
-* {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE/Edge */
-}
-
-*::-webkit-scrollbar {
-  display: none; /* Chrome/Safari */
+@media (max-width: 968px), (max-height: 800px) {
+  .profile-main-custom {
+    align-items: flex-start;
+    height: auto;
+    min-height: calc(100vh - 140px);
+  }
+  
+  .visitor-profile-new {
+    max-height: none;
+    width: 100%;
+  }
+  
+  .profile-sidebar-card,
+  .profile-content-card {
+    max-height: none;
+    overflow: visible;
+  }
 }
 
 /* Responsive - Stack vertically on smaller screens */

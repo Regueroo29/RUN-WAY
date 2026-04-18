@@ -742,3 +742,191 @@
   border-radius: 6px;
   cursor: pointer;
 }
+
+/* ============================================
+   GRID FIX — Remove Overlap & Enable Scroll
+   ============================================ */
+
+/* Kill the masonry row spans that caused overlapping */
+.discovery-grid .design-card {
+  grid-row: auto !important;
+  height: auto !important;
+}
+
+/* Ensure images stay contained and don't bleed */
+.design-image {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.design-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Card flex layout so info sits below image cleanly */
+.design-card {
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.design-card:hover {
+  transform: translateY(-5px);
+  border-color: rgba(200, 160, 120, 0.4);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* Info section natural flow */
+.design-info {
+  padding: 15px;
+  background: transparent;
+  flex-shrink: 0;
+}
+
+/* ============================================
+   MY ACTIVITY — Grouped by Designer
+   ============================================ */
+
+.activity-section {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding-bottom: 60px;
+}
+
+.activity-designer-group {
+  margin-bottom: 60px;
+  animation: groupFadeIn 0.5s ease both;
+}
+
+@keyframes groupFadeIn {
+  from { opacity: 0; transform: translateY(15px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Designer profile header row */
+.activity-designer-header {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 20px 28px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  margin-bottom: 25px;
+  cursor: pointer;
+  transition: all 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.activity-designer-header:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(200, 180, 160, 0.35);
+  transform: translateX(8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.activity-designer-avatar,
+.activity-designer-avatar-placeholder {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2.5px solid rgba(200, 180, 160, 0.45);
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.activity-designer-avatar-placeholder {
+  background: linear-gradient(135deg, #a47148 0%, #8b5a3c 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 300;
+  color: white;
+}
+
+.activity-designer-info {
+  flex: 1;
+}
+
+.activity-designer-info h4 {
+  margin: 0 0 5px 0;
+  font-size: 18px;
+  font-weight: 500;
+  color: rgba(200, 180, 160, 1);
+  letter-spacing: 0.5px;
+}
+
+.activity-designer-info p {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.activity-arrow {
+  font-size: 22px;
+  color: rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+}
+
+.activity-designer-header:hover .activity-arrow {
+  color: rgba(200, 180, 160, 1);
+  transform: translateX(8px);
+}
+
+/* Grid of liked designs under each designer */
+.activity-designer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 25px;
+}
+
+/* ============================================
+   SCROLLBAR (Discovery Main)
+   ============================================ */
+
+.discovery-main {
+  flex: 1;
+  margin-top: 80px;
+  margin-bottom: 60px;
+  overflow-y: auto;
+  padding: 40px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(160, 120, 90, 0.5) transparent;
+}
+
+.discovery-main::-webkit-scrollbar {
+  width: 8px;
+}
+
+.discovery-main::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.discovery-main::-webkit-scrollbar-thumb {
+  background: rgba(160, 120, 90, 0.5);
+  border-radius: 4px;
+}
+
+/* ============================================
+   EMPTY STATE
+   ============================================ */
+
+.empty-state {
+  text-align: center;
+  padding: 80px 20px;
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
+  font-size: 15px;
+}
