@@ -106,7 +106,7 @@ function Login() {
         <div className="vertical-text bottom-right">I</div> 
         <div className="vertical-text bottom">N</div> 
         
-        <div className="split-brand-vertical">RUN-WAY</div>
+        <div className="split-brand-vertical">Aphronique</div>
       </div>
 
       <div className="split-form-side">

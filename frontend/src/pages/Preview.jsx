@@ -46,9 +46,9 @@ function Preview() {
 
           {/* ✅ FIXED: Image moved to side, not overlapping */}
           <div className="preview-showcase">
-            <img src="/KSJ.jpg" alt="Fashion Preview" />
+            <img src="/registerimage.jpg" alt="Fashion Preview" />
             <div className="showcase-text">
-              <span>RUN-WAY</span>
+              <span>Aphronique</span>
               <span>2026 COLLECTION</span>
             </div>
           </div>

@@ -16,7 +16,7 @@ function Home() {
 
         {/* CENTER CONTENT */}
         <div className="home-content">
-          <h1>RUN-WAY</h1>
+          <h1>Aphronique</h1>
           <div className="home-accent"></div>
           <p>Haute Couture Fashion House</p>
           {/* ✅ Changed: Now goes to Preview page */}

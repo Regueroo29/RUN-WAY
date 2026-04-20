@@ -1042,7 +1042,7 @@ html, body, #root {
 .home-page {
   height: 100vh;
   width: 100%;
-  background-image: url("/bgimage.jpg");
+  background-image: url("/Aprhobgm.jpg");
   background-size: cover;
   background-position: center;
   position: relative;
@@ -1221,7 +1221,7 @@ html, body, #root {
 
 .preview-page {
   min-height: 100vh;
-  background-image: url("/bgimage.jpg");
+  background-image: url("/Aprhobgm.jpg");
   background-size: cover;
   background-position: center;
   position: relative;

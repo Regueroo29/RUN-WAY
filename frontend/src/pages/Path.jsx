@@ -5,7 +5,7 @@ function Path() {
   return (
     <div className="path-page blue-theme">
       <div className="path-overlay">
-        <h1 className="path-title">WELCOME TO RUN-WAY</h1>
+        <h1 className="path-title">WELCOME TO Aphronique</h1>
         <p style={{ marginBottom: '40px', color: 'rgba(255,255,255,0.8)' }}>
           Your account type has been set during registration
         </p>

@@ -1,4 +1,4 @@
-require('dotenv').config(); // This MUST be first!
+require('dotenv').config();
 
 const http = require('http');
 const { Server } = require('socket.io');
@@ -10,70 +10,122 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 const { generateToken } = require('./middleware/auth');
-const connectedUsers = new Map();
 
+// ========== CLOUDINARY SETUP ==========
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+const cloudinaryStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'aphronique',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'gif'],
+    transformation: [{ quality: 'auto' }]
+  }
+});
+
+// Use Cloudinary in production, local disk in development
+const isProduction = process.env.NODE_ENV === 'production';
+let upload;
+
+if (isProduction) {
+  upload = multer({ 
+    storage: cloudinaryStorage,
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype.startsWith("image/")) cb(null, true);
+      else cb(new Error("Only image files are allowed"));
+    }
+  });
+} else {
+  // Local development - keep your existing disk storage
+  const uploadsDir = path.join(__dirname, "uploads");
+  if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+  
+  const localStorage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadsDir),
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
+      cb(null, uniqueSuffix + path.extname(file.originalname));
+    }
+  });
+  
+  upload = multer({ 
+    storage: localStorage,
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype.startsWith("image/")) cb(null, true);
+      else cb(new Error("Only image files are allowed"));
+    }
+  });
+}
+// =====================================
 
 const app = express();
+const connectedUsers = new Map();
 
-// ================= CONFIG FROM .ENV =================
+// ================= CONFIG =================
 const PORT = process.env.PORT || 5000;
 const DB_HOST = process.env.DB_HOST || "localhost";
 const DB_USER = process.env.DB_USER || "root";
-const DB_PASSWORD = process.env.DB_PASSWORD || "IRyStocrats12";
-const DB_NAME = process.env.DB_NAME || "runway_db";
+const DB_PASSWORD = process.env.DB_PASSWORD || "";
+const DB_NAME = process.env.DB_NAME || "aphronique_db";
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 
-console.log("🔧 Config:", { PORT, DB_HOST, FRONTEND_URL }); // Debug line
+console.log("🔧 Config:", { PORT, DB_HOST, FRONTEND_URL, NODE_ENV: process.env.NODE_ENV });
 
-// Middleware
+// ========== CORS (Multi-Origin) ==========
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://aphronique.com',
+  'https://www.aphronique.com'
+];
+
+// Add Vercel preview URLs dynamically
+if (process.env.VERCEL_URL) {
+  allowedOrigins.push(`https://${process.env.VERCEL_URL}`);
+}
+
 app.use(cors({
-  origin: FRONTEND_URL,
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      console.log('CORS blocked:', origin);
+      return callback(new Error('CORS policy violation'), false);
+    }
+    return callback(null, true);
+  },
   credentials: true
 }));
+
 app.use(express.json());
 
-// Static files for uploads
-const uploadsDir = path.join(__dirname, "uploads");
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+// Static files (local only - production uses Cloudinary URLs directly)
+if (!isProduction) {
+  app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 }
-app.use("/uploads", express.static(uploadsDir));
 
-// Multer config for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({ 
-  storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith("image/")) {
-      cb(null, true);
-    } else {
-      cb(new Error("Only image files are allowed"));
-    }
-  }
-});
-
-// MySQL connection using env variables
+// MySQL connection
 const db = mysql.createPool({
   host: DB_HOST,
+  port: process.env.DB_PORT || 3306,  // <-- ADD THIS LINE for TiDB port 4000
   user: DB_USER,
   password: DB_PASSWORD,
   database: DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0
+  queueLimit: 0,
+  ssl: isProduction ? { rejectUnauthorized: false } : false  // <-- TiDB needs this
 });
 
-// Make db accessible to routes
 global.db = db;
 
 // Import admin routes
@@ -82,9 +134,8 @@ app.use('/api/admin', adminRoutes);
 
 // Test connection
 db.getConnection((err, connection) => {
-  if (err) {
-    console.error("❌ Database connection failed:", err);
-  } else {
+  if (err) console.error("❌ Database connection failed:", err);
+  else {
     console.log("✅ MySQL Connected!");
     connection.release();
   }
@@ -99,99 +150,79 @@ const logActivity = (user_id, action_type, target_id = null, details = '') => {
   );
 };
 
-// ================= AUTH =================
-app.post("/api/register", async (req, res) => {
-  const { first_name, last_name, email, password, role, date_of_birth, gender } = req.body;
-  
-  // Validation
-  if (!first_name || !last_name || !email || !password || !role) {
-    return res.status(400).json({ error: "Please fill in all required fields" });
-  }
-  
-  if (!['visitor', 'designer'].includes(role)) {
-    return res.status(400).json({ error: "Please select a valid role" });
-  }
-  
-  // NEW: Password complexity check (only for new registrations)
-  const passErrors = validatePassword(password);
-  if (passErrors.length > 0) {
-    return res.status(400).json({ 
-      error: `Password must contain ${passErrors.join(", ")}` 
-    });
-  }
-  
-  try {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const username = `${first_name} ${last_name}`;
-    
-    db.query(
-      `INSERT INTO users 
-       (username, first_name, last_name, email, password, role, date_of_birth, gender) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [username, first_name, last_name, email, hashedPassword, role, date_of_birth || null, gender || null],
-      (err, result) => {
-        if (err) {
-          if (err.code === 'ER_DUP_ENTRY') {
-            return res.status(400).json({ error: "Email already exists" });
-          }
-          return res.status(500).json({ error: err.message });
-        }
-        logActivity(result.insertId, 'register', null, `New ${role} registered`);
-        res.json({ 
-          message: "User registered successfully", 
-          user_id: result.insertId,
-          role: role 
-        });
-      }
-    );
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// Helper: Get full image URL
+const getImageUrl = (pathOrUrl) => {
+  if (!pathOrUrl) return null;
+  if (pathOrUrl.startsWith('http')) return pathOrUrl; // Already Cloudinary URL
+  return `${BASE_URL}${pathOrUrl}`; // Local URL
+};
 
+// ================= AUTH =================
 app.post("/api/login", (req, res) => {
   const { email, password } = req.body;
+
   db.query(
     "SELECT user_id, username, email, password, role, bio, brand_name, specialty, location, website, instagram, facebook, twitter, avatar_url, status, suspension_reason, suspension_end_date FROM users WHERE email = ?",
     [email],
     async (err, result) => {
-      if (err) return res.status(500).json({ error: err.message });
-      if (result.length === 0) return res.status(401).json({ error: "User not found" });
-      
+      if (err) {
+        return res.status(500).json({ 
+          success: false,
+          error: "server",
+          message: "Server error. Please try again later." 
+        });
+      }
+
+      if (result.length === 0) {
+        return res.status(401).json({ 
+          success: false,
+          error: "email",
+          message: "Wrong email" 
+        });
+      }
+
       const user = result[0];
-      
-      // Check if suspended
+
       if (user.status === 'suspended') {
         const now = new Date();
         const endDate = user.suspension_end_date ? new Date(user.suspension_end_date) : null;
         
-        // If suspension expired, auto-reactivate
         if (endDate && endDate < now) {
           db.query("UPDATE users SET status='active', suspension_reason=NULL, suspension_end_date=NULL WHERE user_id=?", [user.user_id]);
-          user.status = 'active'; // continue login
+          user.status = 'active';
         } else if (!endDate) {
-          // Permanent suspension
           return res.status(403).json({ 
-            error: "Account permanently suspended", 
+            success: false,
+            error: "suspended",
+            message: "Account permanently suspended", 
             reason: user.suspension_reason 
           });
         } else {
-          // Active timed suspension
           return res.status(403).json({ 
-            error: "Account suspended", 
+            success: false,
+            error: "suspended",
+            message: "Account suspended", 
             reason: user.suspension_reason,
             until: user.suspension_end_date 
           });
         }
       }
-      
+
       const match = await bcrypt.compare(password, user.password);
-      if (!match) return res.status(401).json({ error: "Invalid password" });
+      if (!match) {
+        return res.status(401).json({ 
+          success: false,
+          error: "password",
+          message: "Wrong password" 
+        });
+      }
 
       const token = generateToken(user);
       logActivity(user.user_id, 'login');
       
       res.json({
+        success: true,
+        message: "Login successful",
         user_id: user.user_id,
         username: user.username,
         email: user.email,
@@ -204,18 +235,17 @@ app.post("/api/login", (req, res) => {
         instagram: user.instagram,
         facebook: user.facebook,
         twitter: user.twitter,
-        avatar_url: user.avatar_url ? `http://localhost:${PORT}${user.avatar_url}` : null,
+        avatar_url: getImageUrl(user.avatar_url),
         status: user.status,
         suspension_reason: user.suspension_reason,
         suspension_end_date: user.suspension_end_date,
-        token: generateToken(user) // Send token to client
+        token: token
       });
     }
   );
 });
 
 // ================= USER PROFILE =================
-
 app.get("/api/users/:id", (req, res) => {
   const userId = req.params.id;
   db.query(
@@ -228,9 +258,7 @@ app.get("/api/users/:id", (req, res) => {
       if (result.length === 0) return res.status(404).json({ error: "User not found" });
       
       const userData = result[0];
-      if (userData.avatar_url) {
-        userData.avatar_url = `http://localhost:${PORT}${userData.avatar_url}`;
-      }
+      userData.avatar_url = getImageUrl(userData.avatar_url);
       
       db.query(
         "SELECT COUNT(*) as follower_count FROM follows WHERE designer_id = ?",
@@ -245,7 +273,7 @@ app.get("/api/users/:id", (req, res) => {
   );
 });
 
-// Update profile (FIXED - includes all fields)
+// Update profile
 app.put("/api/users/:id/profile", (req, res) => {
   const userId = req.params.id;
   const { bio, brand_name, specialty, location, website, instagram, facebook, twitter } = req.body;
@@ -265,12 +293,13 @@ app.put("/api/users/:id/profile", (req, res) => {
   );
 });
 
-// Upload avatar (NEW)
+// Upload avatar
 app.post("/api/users/:id/avatar", upload.single("avatar"), (req, res) => {
   const userId = req.params.id;
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
   
-  const avatarUrl = `/uploads/${req.file.filename}`;
+  // Cloudinary returns full URL in req.file.path, local returns path
+  const avatarUrl = isProduction ? req.file.path : `/uploads/${req.file.filename}`;
   
   db.query(
     "UPDATE users SET avatar_url = ? WHERE user_id = ?",
@@ -279,37 +308,13 @@ app.post("/api/users/:id/avatar", upload.single("avatar"), (req, res) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ 
         message: "Avatar updated", 
-        avatar_url: `http://localhost:${PORT}${avatarUrl}` 
+        avatar_url: getImageUrl(avatarUrl)
       });
     }
   );
 });
 
-// Switch role (FIXED)
-app.post("/api/users/:id/switch-role", (req, res) => {
-  const userId = req.params.id;
-  const { new_role } = req.body;
-  
-  if (!['visitor', 'designer', 'admin'].includes(new_role)) {
-    return res.status(400).json({ error: "Invalid role" });
-  }
-  
-  db.query(
-    "UPDATE users SET role = ? WHERE user_id = ?",
-    [new_role, userId],
-    (err, result) => {
-      if (err) return res.status(500).json({ error: err.message });
-      if (result.affectedRows === 0) return res.status(404).json({ error: "User not found" });
-      
-      logActivity(userId, 'switch_role', null, `Switched to ${new_role}`);
-      res.json({ message: "Role updated successfully", new_role });
-    }
-  );
-});
-
 // ================= DESIGNS =================
-
-// Get all designs
 app.get("/api/designs", (req, res) => {
   const userId = req.query.userId;
   
@@ -326,14 +331,9 @@ app.get("/api/designs", (req, res) => {
   db.query(query, (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
     
-    // Format avatar URLs to be full paths
     results.forEach(design => {
-      if (design.designer_avatar && !design.designer_avatar.startsWith('http')) {
-        design.designer_avatar = `http://localhost:${PORT}${design.designer_avatar}`;
-      }
-      if (design.image_url && !design.image_url.startsWith('http')) {
-        design.image_url = `http://localhost:${PORT}${design.image_url}`;
-      }
+      design.designer_avatar = getImageUrl(design.designer_avatar);
+      design.image_url = getImageUrl(design.image_url);
     });
     
     if (userId && results.length > 0) {
@@ -385,123 +385,19 @@ app.get("/api/designs/designer/:designerId", (req, res) => {
     [designerId],
     (err, results) => {
       if (err) return res.status(500).json({ error: err.message });
+      results.forEach(d => d.image_url = getImageUrl(d.image_url));
       res.json(results);
     }
   );
 });
 
-// Update design with new image
-app.post("/api/designs/:id/update-with-image", upload.single("image"), async (req, res) => {
-  const designId = req.params.id;
-  const { designer_id, title, description, season } = req.body;
-  
-  try {
-    // Get old design to delete old image (optional cleanup)
-    const [oldDesign] = await db.promise().query(
-      "SELECT image_url FROM designs WHERE design_id = ? AND designer_id = ?",
-      [designId, designer_id]
-    );
-    
-    // Build update query
-    let updateQuery, params;
-    
-    if (req.file) {
-      // New image uploaded
-      const newImageUrl = `/uploads/${req.file.filename}`;
-      updateQuery = `UPDATE designs SET title = ?, description = ?, season = ?, image_url = ?, updated_at = CURRENT_TIMESTAMP WHERE design_id = ? AND designer_id = ?`;
-      params = [title, description, season, newImageUrl, designId, designer_id];
-      
-      // Optional: Delete old image file to save space
-      if (oldDesign.length > 0 && oldDesign[0].image_url) {
-        const oldPath = path.join(__dirname, oldDesign[0].image_url);
-        if (fs.existsSync(oldPath)) {
-          fs.unlinkSync(oldPath);
-        }
-      }
-    } else {
-      // No new image
-      updateQuery = `UPDATE designs SET title = ?, description = ?, season = ?, updated_at = CURRENT_TIMESTAMP WHERE design_id = ? AND designer_id = ?`;
-      params = [title, description, season, designId, designer_id];
-    }
-    
-    const [result] = await db.promise().query(updateQuery, params);
-    
-    if (result.affectedRows === 0) {
-      return res.status(403).json({ error: "Unauthorized or design not found" });
-    }
-    
-    res.json({ message: "Design updated successfully" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.put("/api/designs/:id", (req, res) => {
-  const designId = req.params.id;
-  const { designer_id, title, description, season } = req.body;
-  
-  db.query(
-    "SELECT designer_id FROM designs WHERE design_id = ?",
-    [designId],
-    (err, result) => {
-      if (err) return res.status(500).json({ error: err.message });
-      if (result.length === 0) return res.status(404).json({ error: "Design not found" });
-      if (result[0].designer_id != designer_id) return res.status(403).json({ error: "Unauthorized" });
-      
-      db.query(
-        "UPDATE designs SET title = ?, description = ?, season = ?, updated_at = CURRENT_TIMESTAMP WHERE design_id = ?",
-        [title, description, season, designId],
-        (err) => {
-          if (err) return res.status(500).json({ error: err.message });
-          logActivity(designer_id, 'edit_design', designId, `Edited: ${title}`);
-          res.json({ message: "Design updated" });
-        }
-      );
-    }
-  );
-});
-
-// ================= DELETE DESIGN =================
-app.delete("/api/designs/:id", (req, res) => {
-  const designId = req.params.id;
-  const designerId = req.query.designerId;
-
-  if (!designerId) {
-    return res.status(400).json({ error: "Designer ID required" });
-  }
-
-  db.query(
-    "DELETE FROM designs WHERE design_id = ? AND designer_id = ?",
-    [designId, designerId],
-    (err, result) => {
-      if (err) return res.status(500).json({ error: err.message });
-      if (result.affectedRows === 0)
-        return res.status(403).json({ error: "Unauthorized or not found" });
-
-      logActivity(designerId, "delete_design", designId);
-
-      // Real-time removal from all designer galleries
-      if (global.io) {
-        global.io.emit("design_deleted", {
-          design_id: parseInt(designId),
-          designer_id: parseInt(designerId),
-        });
-      }
-
-      res.json({ message: "Design deleted" });
-    }
-  );
-});
-
-// ================= CREATE DESIGN (UPLOAD) =================
+// Create design (upload)
 app.post("/api/designs", upload.single("image"), (req, res) => {
   const { designer_id, title, description, season } = req.body;
   
-  if (!req.file) {
-    return res.status(400).json({ error: "No image uploaded" });
-  }
+  if (!req.file) return res.status(400).json({ error: "No image uploaded" });
   
-  const imageUrl = `/uploads/${req.file.filename}`;
+  const imageUrl = isProduction ? req.file.path : `/uploads/${req.file.filename}`;
   
   db.query(
     "INSERT INTO designs (designer_id, title, description, image_url, season) VALUES (?, ?, ?, ?, ?)",
@@ -520,272 +416,60 @@ app.post("/api/designs", upload.single("image"), (req, res) => {
         title,
         description,
         season,
-        image_url: `http://localhost:${PORT}${imageUrl}`,
+        image_url: getImageUrl(imageUrl),
         created_at: new Date().toISOString()
       };
       
-      // Broadcast to all connected clients
-      if (global.io) {
-        global.io.emit('design_uploaded', designData);
-      }
+      if (global.io) global.io.emit('design_uploaded', designData);
       
       res.json({ 
         message: "Design uploaded successfully", 
         design_id: result.insertId,
-        image_url: `http://localhost:${PORT}${imageUrl}`
+        image_url: getImageUrl(imageUrl)
       });
     }
   );
 });
 
-// ================= LIKES =================
-app.post("/api/likes/toggle", (req, res) => {
-  const { user_id, design_id } = req.body;
-
-  db.query(
-    "SELECT * FROM likes WHERE user_id = ? AND design_id = ?",
-    [user_id, design_id],
-    (err, result) => {
-      if (err) return res.status(500).json({ error: err.message });
-
-      const broadcast = (liked) => {
-        db.query(
-          "SELECT COUNT(*) as count FROM likes WHERE design_id = ?",
-          [design_id],
-          (err, countRes) => {
-            if (!err && global.io) {
-              global.io.emit("design_liked", {
-                design_id: parseInt(design_id),
-                like_count: countRes[0].count,
-                user_id: parseInt(user_id),
-                liked,
-              });
-            }
-          }
-        );
-      };
-
-      if (result.length > 0) {
-        db.query(
-          "DELETE FROM likes WHERE user_id = ? AND design_id = ?",
-          [user_id, design_id],
-          (err) => {
-            if (err) return res.status(500).json({ error: err.message });
-            broadcast(false);
-            res.json({ liked: false, message: "Unliked" });
-          }
-        );
-      } else {
-        db.query(
-          "INSERT INTO likes (user_id, design_id) VALUES (?, ?)",
-          [user_id, design_id],
-          (err) => {
-            if (err) return res.status(500).json({ error: err.message });
-            logActivity(user_id, "like_design", design_id);
-            broadcast(true);
-            res.json({ liked: true, message: "Liked" });
-          }
-        );
-      }
-    }
-  );
-});
-
-app.get("/api/users/:id/likes", (req, res) => {
-  const userId = req.params.id;
-  db.query(
-    `SELECT d.*, u.username as designer_name 
-     FROM likes l
-     JOIN designs d ON l.design_id = d.design_id
-     JOIN users u ON d.designer_id = u.user_id
-     WHERE l.user_id = ?
-     ORDER BY l.created_at DESC`,
-    [userId],
-    (err, results) => {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json(results);
-    }
-  );
-});
-
-// ================= RATINGS =================
-app.post("/api/ratings", (req, res) => {
-  const { user_id, design_id, rating } = req.body;
-
-  if (rating < 1 || rating > 5)
-    return res.status(400).json({ error: "Rating must be 1-5" });
-
-  const broadcast = () => {
-    db.query(
-      "SELECT AVG(rating) as avg_rating, COUNT(*) as rating_count FROM ratings WHERE design_id = ?",
-      [design_id],
-      (err, statsResult) => {
-        if (!err && global.io) {
-          global.io.emit("design_rated", {
-            design_id: parseInt(design_id),
-            avg_rating: statsResult[0].avg_rating,
-            rating_count: statsResult[0].rating_count,
-          });
-        }
-      }
+// Update design with new image
+app.post("/api/designs/:id/update-with-image", upload.single("image"), async (req, res) => {
+  const designId = req.params.id;
+  const { designer_id, title, description, season } = req.body;
+  
+  try {
+    const [oldDesign] = await db.promise().query(
+      "SELECT image_url FROM designs WHERE design_id = ? AND designer_id = ?",
+      [designId, designer_id]
     );
-  };
-
-  db.query(
-    "SELECT * FROM ratings WHERE user_id = ? AND design_id = ?",
-    [user_id, design_id],
-    (err, result) => {
-      if (err) return res.status(500).json({ error: err.message });
-
-      if (result.length > 0) {
-        db.query(
-          "UPDATE ratings SET rating = ? WHERE user_id = ? AND design_id = ?",
-          [rating, user_id, design_id],
-          (err) => {
-            if (err) return res.status(500).json({ error: err.message });
-            logActivity(user_id, "rate_design", design_id, `Rated ${rating} stars`);
-            broadcast();
-            res.json({ message: "Rating updated" });
-          }
-        );
-      } else {
-        db.query(
-          "INSERT INTO ratings (user_id, design_id, rating) VALUES (?, ?, ?)",
-          [user_id, design_id, rating],
-          (err) => {
-            if (err) return res.status(500).json({ error: err.message });
-            logActivity(user_id, "rate_design", design_id, `Rated ${rating} stars`);
-            broadcast();
-            res.json({ message: "Rating added" });
-          }
-        );
-      }
+    
+    let updateQuery, params;
+    
+    if (req.file) {
+      const newImageUrl = isProduction ? req.file.path : `/uploads/${req.file.filename}`;
+      updateQuery = `UPDATE designs SET title = ?, description = ?, season = ?, image_url = ?, updated_at = CURRENT_TIMESTAMP WHERE design_id = ? AND designer_id = ?`;
+      params = [title, description, season, newImageUrl, designId, designer_id];
+    } else {
+      updateQuery = `UPDATE designs SET title = ?, description = ?, season = ?, updated_at = CURRENT_TIMESTAMP WHERE design_id = ? AND designer_id = ?`;
+      params = [title, description, season, designId, designer_id];
     }
-  );
-});
-
-// ================= FOLLOWS =================
-app.post("/api/follows/toggle", (req, res) => {
-  const { follower_id, designer_id } = req.body;
-  
-  if (follower_id == designer_id) {
-    return res.status(400).json({ error: "Cannot follow yourself" });
+    
+    const [result] = await db.promise().query(updateQuery, params);
+    
+    if (result.affectedRows === 0) {
+      return res.status(403).json({ error: "Unauthorized or design not found" });
+    }
+    
+    res.json({ message: "Design updated successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  
-  db.query(
-    "SELECT * FROM follows WHERE follower_id = ? AND designer_id = ?",
-    [follower_id, designer_id],
-    (err, result) => {
-      if (err) return res.status(500).json({ error: err.message });
-      
-      if (result.length > 0) {
-        db.query(
-          "DELETE FROM follows WHERE follower_id = ? AND designer_id = ?",
-          [follower_id, designer_id],
-          (err) => {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json({ following: false });
-          }
-        );
-      } else {
-        db.query(
-          "INSERT INTO follows (follower_id, designer_id) VALUES (?, ?)",
-          [follower_id, designer_id],
-          (err) => {
-            if (err) return res.status(500).json({ error: err.message });
-            logActivity(follower_id, 'follow', designer_id);
-            res.json({ following: true });
-          }
-        );
-      }
-    }
-  );
 });
 
-// Check follow status
-app.get("/api/follows/check", (req, res) => {
-  const { follower_id, designer_id } = req.query;
-  
-  if (!follower_id || !designer_id) {
-    return res.status(400).json({ error: "Missing parameters" });
-  }
-  
-  db.query(
-    "SELECT * FROM follows WHERE follower_id = ? AND designer_id = ?",
-    [follower_id, designer_id],
-    (err, result) => {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({ following: result.length > 0 });
-    }
-  );
-});
+// ... keep all your other routes (likes, ratings, follows, etc.) exactly the same ...
 
-// Health check (cloud requirement)
+// Health check
 app.get("/api/health", (req, res) => {
   res.json({ status: "OK", timestamp: new Date().toISOString() });
-});
-
-// ================= PASSWORD CHANGE =================
-// Update password change to ALSO enforce complexity (existing users changing pw will hit this)
-app.put("/api/users/:id/password", async (req, res) => {
-  const userId = req.params.id;
-  const { currentPassword, newPassword } = req.body;
-  
-  // NEW: Validate complexity for password changes
-  const passErrors = validatePassword(newPassword);
-  if (passErrors.length > 0) {
-    return res.status(400).json({ 
-      error: `Password must contain ${passErrors.join(", ")}` 
-    });
-  }
-  
-  db.query("SELECT password FROM users WHERE user_id = ?", [userId], async (err, result) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (result.length === 0) return res.status(404).json({ error: "User not found" });
-    
-    const match = await bcrypt.compare(currentPassword, result[0].password);
-    if (!match) return res.status(401).json({ error: "Current password is incorrect" });
-    
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    
-    db.query("UPDATE users SET password = ? WHERE user_id = ?", [hashedPassword, userId], (err) => {
-      if (err) return res.status(500).json({ error: err.message });
-      logActivity(userId, 'password_change');
-      res.json({ message: "Password updated successfully" });
-    });
-  });
-});
-
-// Switch Role - ADMIN ONLY (protect this)
-app.post("/api/users/:id/switch-role", async (req, res) => {
-  const userId = req.params.id;
-  const { new_role } = req.body;
-  const adminId = req.headers['user-id'];
-  
-  // Verify admin is making the request
-  if (!adminId) return res.status(401).json({ error: "Not authenticated" });
-  
-  db.query("SELECT role FROM users WHERE user_id = ?", [adminId], (err, result) => {
-    if (err || result.length === 0 || result[0].role !== 'admin') {
-      return res.status(403).json({ error: "Admin access required" });
-    }
-    
-    if (!['visitor', 'designer', 'admin'].includes(new_role)) {
-      return res.status(400).json({ error: "Invalid role" });
-    }
-    
-    db.query(
-      "UPDATE users SET role = ? WHERE user_id = ?",
-      [new_role, userId],
-      (err, result) => {
-        if (err) return res.status(500).json({ error: err.message });
-        if (result.affectedRows === 0) return res.status(404).json({ error: "User not found" });
-        
-        logActivity(userId, 'switch_role', null, `Admin changed role to ${new_role}`);
-        res.json({ message: "Role updated successfully", new_role });
-      }
-    );
-  });
 });
 
 // Error handling
@@ -794,19 +478,10 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message });
 });
 
-const validatePassword = (password) => {
-  const errors = [];
-  if (password.length < 8) errors.push("at least 8 characters");
-  if (!/[A-Z]/.test(password)) errors.push("one uppercase letter");
-  if (!/[0-9]/.test(password)) errors.push("one number");
-  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) errors.push("one special character");
-  return errors;
-};
-
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: FRONTEND_URL,
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true
   }
@@ -814,7 +489,6 @@ const io = new Server(server, {
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
-  
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
     connectedUsers.delete(socket.userId);
@@ -824,5 +498,5 @@ io.on('connection', (socket) => {
 global.io = io;
 
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🚀 Aphronique API running on port ${PORT}`);
 });

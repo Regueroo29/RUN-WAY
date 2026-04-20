@@ -395,7 +395,7 @@ function Designer() {
   return (
     <div className="designer-studio">
       <header className="studio-header">
-        <div className="studio-logo">RUN-WAY</div>
+        <div className="studio-logo">Aphronique</div>
         <nav className="studio-tabs">
           <button className={activeTab === "gallery" ? "active" : ""} onClick={() => handleTabChange("gallery")}>
             GALLERY

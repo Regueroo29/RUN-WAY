@@ -1,5 +1,5 @@
 {
-  "name": "backend",
+  "name": "aphronique-api",
   "version": "1.0.0",
   "description": "Runway Fashion App Backend",
   "main": "index.js",
@@ -14,11 +14,13 @@
   "type": "commonjs",
   "dependencies": {
     "bcrypt": "^6.0.0",
+    "cloudinary": "^1.41.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.1",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
+    "multer-storage-cloudinary": "^4.0.0",
     "mysql2": "^3.20.0",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3"
