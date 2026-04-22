@@ -116,14 +116,14 @@ if (!isProduction) {
 // MySQL connection
 const db = mysql.createPool({
   host: DB_HOST,
-  port: process.env.DB_PORT || 3306,  // <-- ADD THIS LINE for TiDB port 4000
+  port: process.env.DB_PORT || 3306,  // <-- THIS LINE for TiDB port 4000
   user: DB_USER,
   password: DB_PASSWORD,
   database: DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  ssl: isProduction ? { rejectUnauthorized: false } : false  // <-- TiDB needs this
+  ssl: isProduction ? { rejectUnauthorized: false } : false  // <-- TiDB 
 });
 
 global.db = db;
