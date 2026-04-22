@@ -86,7 +86,9 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   'https://aphronique.com',
-  'https://www.aphronique.com'
+  'https://www.aphronique.com',
+  'https://run-way-8aes.vercel.app',  // <-- ADDED for Vercel preview (temporary) - replace with actual domain when ready
+  'https://aphronique.vercel.app'      // <-- ADDED this too (for future)
 ];
 
 // Add Vercel preview URLs dynamically
@@ -243,6 +245,34 @@ app.post("/api/login", (req, res) => {
       });
     }
   );
+});
+
+app.post("/api/register", async (req, res) => {
+  const { username, email, password, first_name, last_name, role } = req.body;
+  
+  try {
+    // Check if email exists
+    const [existing] = await db.promise().query(
+      "SELECT * FROM users WHERE email = ?", [email]
+    );
+    
+    if (existing.length > 0) {
+      return res.status(400).json({ success: false, message: "Email already exists" });
+    }
+    
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // Insert user
+    const [result] = await db.promise().query(
+      "INSERT INTO users (username, email, password, first_name, last_name, role) VALUES (?, ?, ?, ?, ?, ?)",
+      [username, email, hashedPassword, first_name, last_name, role || 'user']
+    );
+    
+    res.json({ success: true, message: "Registration successful", user_id: result.insertId });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // ================= USER PROFILE =================
