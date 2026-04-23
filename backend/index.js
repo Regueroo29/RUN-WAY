@@ -111,9 +111,8 @@ app.use(cors({
 app.use(express.json());
 
 // Static files (local only - production uses Cloudinary URLs directly)
-if (!isProduction) {
-  app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-}
+// -- changed to cloud
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // MySQL connection
 const db = mysql.createPool({
