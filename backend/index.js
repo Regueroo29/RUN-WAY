@@ -252,7 +252,7 @@ app.post("/api/login", (req, res) => {
 });
 
 app.post("/api/register", async (req, res) => {
-  const { username, email, password, first_name, last_name, role } = req.body;
+  const { email, password, first_name, last_name, role, gender, date_of_birth } = req.body;
   
   try {
     // Check if email exists
@@ -264,17 +264,27 @@ app.post("/api/register", async (req, res) => {
       return res.status(400).json({ success: false, message: "Email already exists" });
     }
     
+    // Generate username from first + last name
+    const username = first_name && last_name 
+      ? `${first_name} ${last_name}` 
+      : (first_name || last_name || email.split('@')[0]);
+    
+    // Validate role
+    const validRoles = ['visitor', 'designer', 'admin'];
+    const userRole = validRoles.includes(role) ? role : 'visitor';
+    
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
     
     // Insert user
     const [result] = await db.promise().query(
-      "INSERT INTO users (username, email, password, first_name, last_name, role) VALUES (?, ?, ?, ?, ?, ?)",
-      [username, email, hashedPassword, first_name, last_name, role || 'user']
+      "INSERT INTO users (username, email, password, first_name, last_name, role, gender, date_of_birth) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      [username, email, hashedPassword, first_name, last_name, userRole, gender, date_of_birth]
     );
     
     res.json({ success: true, message: "Registration successful", user_id: result.insertId });
   } catch (err) {
+    console.error("Register error:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 });

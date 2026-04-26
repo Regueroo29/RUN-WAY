@@ -66,15 +66,16 @@ function Register() {
       : null;
 
     try {
-      await API.post("/register", { 
-        first_name: firstName,
-        last_name: lastName,
-        email, 
-        password, 
-        role,
-        gender,
-        date_of_birth
-      });
+        await API.post("/register", { 
+          username: `${firstName} ${lastName}`,  // <-- ADD THIS
+          first_name: firstName,
+          last_name: lastName,
+          email, 
+          password, 
+          role,
+          gender,
+          date_of_birth
+        });
       
       alert(`Registration successful! Welcome as a ${role}. Please login.`);
       navigate("/login");
