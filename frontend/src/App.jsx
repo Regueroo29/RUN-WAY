@@ -1,32 +1,50 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import Home from "./pages/Home";
-import Preview from "./pages/Preview";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-// import Path from "./pages/Path"; // REMOVE or comment out - no longer needed
-import Designer from "./pages/Designer";
-import DesignerProfile from "./pages/DesignerProfile";
-import Dashboard from "./pages/Dashboard";
-import Profile from "./pages/Profile"; 
-import Admin from "./pages/Admin";  
+import React, { Suspense } from 'react';
+import { Routes, Route } from 'react-router-dom';
+import './App.css';
+
+// Lazy load all pages — only load when user navigates to them
+const Home = React.lazy(() => import('./pages/Home.jsx'));
+const Login = React.lazy(() => import('./pages/Login.jsx'));
+const Register = React.lazy(() => import('./pages/Register.jsx'));
+const Dashboard = React.lazy(() => import('./pages/Dashboard.jsx'));
+const Designer = React.lazy(() => import('./pages/Designer.jsx'));
+const DesignerProfile = React.lazy(() => import('./pages/DesignerProfile.jsx'));
+const Profile = React.lazy(() => import('./pages/Profile.jsx'));
+const Admin = React.lazy(() => import('./pages/Admin.jsx'));
+const Path = React.lazy(() => import('./pages/Path.jsx'));
+const Preview = React.lazy(() => import('./pages/Preview.jsx'));
+
+// Loading fallback component
+const PageLoader = () => (
+    <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh' 
+    }}>
+        <div>Loading...</div>
+    </div>
+);
 
 function App() {
-  return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/preview" element={<Preview />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        {/* <Route path="/path" element={<Path />} /> REMOVE - no longer needed */}
-        <Route path="/designer/:id" element={<DesignerProfile />} />
-        <Route path="/designer" element={<Designer />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/profile" element={<Profile />} /> 
-        <Route path="/admin" element={<Admin />} /> 
-      </Routes>
-    </Router>
-  );
+    return (
+        <div className="app">
+            <Suspense fallback={<PageLoader />}>
+                <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/register" element={<Register />} />
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/designer" element={<Designer />} />
+                    <Route path="/designer/:id" element={<DesignerProfile />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/admin" element={<Admin />} />
+                    <Route path="/path" element={<Path />} />
+                    <Route path="/preview" element={<Preview />} />
+                </Routes>
+            </Suspense>
+        </div>
+    );
 }
 
 export default App;
