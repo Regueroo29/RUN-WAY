@@ -64,6 +64,14 @@ router.get('/designs', async (req, res) => {
   }
 });
 
+// Helper: Log to activity_logs
+const logActivity = (user_id, action_type, target_id = null, details = '') => {
+  global.db.promise().query(
+    "INSERT INTO activity_logs (user_id, action_type, target_id, details) VALUES (?, ?, ?, ?)",
+    [user_id, action_type, target_id, details]
+  ).catch(err => console.log("Activity log error:", err));
+};
+
 // Get activities
 router.get('/activities', async (req, res) => {
   try {
@@ -75,11 +83,12 @@ router.get('/activities', async (req, res) => {
     if (filter === 'posts') {
       query += ` WHERE al.action_type IN ('upload_design', 'edit_design', 'delete_design')`;
     } else if (filter === 'updates') {
-      query += ` WHERE al.action_type IN ('update_profile', 'password_change', 'switch_role', 'hide_design', 'unhide_design', 'suspend', 'unsuspend')`;
+      query += ` WHERE al.action_type IN ('update_profile', 'password_change', 'switch_role')`;
     } else if (filter === 'interactions') {
       query += ` WHERE al.action_type IN ('like_design', 'follow', 'rate_design')`;
+    } else if (filter === 'moderation') {
+      query += ` WHERE al.action_type IN ('hide_design', 'unhide_design', 'suspend', 'unsuspend', 'delete_design')`;
     }
-    // 'all' or no filter = no WHERE clause
     
     query += ` ORDER BY al.created_at DESC LIMIT 100`;
     
@@ -126,7 +135,6 @@ router.get('/users/:id/details', async (req, res) => {
 });
 
 // Suspend User
-// Suspend User
 router.post('/users/:id/suspend', async (req, res) => {
   try {
     const userId = req.params.id;
@@ -164,6 +172,8 @@ router.post('/users/:id/suspend', async (req, res) => {
       });
     }
     
+    logActivity(adminId, 'suspend', userId, `Suspended ${user.username}. Reason: ${reason}`);
+
     res.json({ message: 'User suspended' });
   } catch (error) {
     console.error('Suspend error:', error);
@@ -193,6 +203,8 @@ router.post('/users/:id/unsuspend', async (req, res) => {
       `INSERT INTO user_notifications (user_id, type, message) VALUES (?, 'warning', 'Suspension lifted')`,
       [userId]
     );
+
+    logActivity(userId, 'unsuspend', null, 'Unsuspended by admin');
     
     res.json({ message: 'User unsuspended' });
   } catch (error) {
@@ -240,13 +252,24 @@ router.post('/designs/:id/moderate', async (req, res) => {
     const adminId = req.headers['user-id'] || req.user?.user_id;
     
     if (action === 'delete') {
+      // Get designer_id BEFORE deleting
+      const [designInfo] = await global.db.promise().query(
+        'SELECT designer_id, title FROM designs WHERE design_id = ?', [designId]
+      );
+      
       await global.db.promise().query('DELETE FROM designs WHERE design_id = ?', [designId]);
+      
       if (adminId) {
         await global.db.promise().query(
           `INSERT INTO moderation_logs (admin_id, target_type, target_id, action, reason) VALUES (?, 'design', ?, 'delete', ?)`,
           [adminId, designId, reason]
         );
       }
+      
+      if (designInfo.length > 0) {
+        logActivity(designInfo[0].designer_id, 'delete_design', designId, `Deleted by admin. Reason: ${reason}`);
+      }
+      
     } else {
       const status = action === 'hide' ? 'hidden' : 'active';
       await global.db.promise().query(
@@ -270,6 +293,8 @@ router.post('/designs/:id/moderate', async (req, res) => {
           `INSERT INTO user_notifications (user_id, type, message) VALUES (?, 'design_hidden', ?)`,
           [designs[0].designer_id, message]
         );
+        // Log to activity log
+        logActivity(designs[0].designer_id, action === 'hide' ? 'hide_design' : 'unhide_design', designId, message);
       }
     }
     res.json({ message: `Design ${action}d` });

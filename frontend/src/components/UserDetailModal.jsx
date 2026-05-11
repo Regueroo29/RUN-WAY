@@ -29,8 +29,8 @@ function UserDetailModal({ userId, onClose, onAction }) {
     const adminUser = JSON.parse(localStorage.getItem('user'));
     
     try {
-      const res = await API.post(`/admin/users/${userId}/suspend`, {
-        reason: suspendReason,
+      await API.post(`/admin/users/${userId}/suspend`, {
+        reason: suspensionReason,   // ✅ WAS: suspendReason (missing 'ion')
         duration_days: suspensionDays
       }, {
         headers: {
@@ -40,7 +40,7 @@ function UserDetailModal({ userId, onClose, onAction }) {
       alert('User suspended successfully');
       onClose();
     } catch (err) {
-      console.error("Full error:", err.response?.data);  // <-- ADD THIS
+      console.error("Full error:", err.response?.data);
       alert('Error suspending user: ' + (err.response?.data?.error || err.message));
     }
   };
