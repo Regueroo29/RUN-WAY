@@ -1,6 +1,16 @@
 const express = require('express');
 const router = express.Router();
 
+// Use the same BASE_URL logic as your main index.js
+const BASE_URL = process.env.BASE_URL || `http://localhost:${process.env.PORT || 5000}`;
+
+// Helper: Get full image URL (same as index.js)
+const getImageUrl = (pathOrUrl) => {
+  if (!pathOrUrl) return null;
+  if (pathOrUrl.startsWith('http')) return pathOrUrl; // Already Cloudinary URL
+  return `${BASE_URL}${pathOrUrl}`; // Local URL
+};
+
 // Middleware to check admin (simple version using query param or header)
 const isAdmin = async (req, res, next) => {
   try {
@@ -43,12 +53,9 @@ router.get('/designs', async (req, res) => {
       FROM designs d JOIN users u ON d.designer_id = u.user_id ORDER BY d.created_at DESC`
     );
     
-    // ADD THIS: Format image URLs to full paths
-    const PORT = process.env.PORT || 5000;
+    // FIXED: Use getImageUrl helper instead of hardcoded localhost
     designs.forEach(design => {
-      if (design.image_url && !design.image_url.startsWith('http')) {
-        design.image_url = `http://localhost:${PORT}${design.image_url}`;
-      }
+      design.image_url = getImageUrl(design.image_url);
     });
     
     res.json(designs);
@@ -102,12 +109,9 @@ router.get('/users/:id/details', async (req, res) => {
       `SELECT d.* FROM designs d WHERE d.designer_id = ? ORDER BY d.created_at DESC`, [userId]
     );
     
-    // ADD THIS: Format image URLs for designs
-    const PORT = process.env.PORT || 5000;
+    // FIXED: Use getImageUrl helper
     designs.forEach(design => {
-      if (design.image_url && !design.image_url.startsWith('http')) {
-        design.image_url = `http://localhost:${PORT}${design.image_url}`;
-      }
+      design.image_url = getImageUrl(design.image_url);
     });
     
     const [history] = await global.db.promise().query(
@@ -126,7 +130,7 @@ router.post('/users/:id/suspend', async (req, res) => {
   try {
     const userId = req.params.id;
     const { reason, duration_days } = req.body;
-    const adminId = req.headers['user-id'] || req.user?.user_id; // Fix: use req.user from auth middleware
+    const adminId = req.headers['user-id'] || req.user?.user_id;
     
     if (!reason) return res.status(400).json({ error: 'Reason required' });
     
@@ -201,11 +205,8 @@ router.get('/designs/:id/details', async (req, res) => {
     
     if (designs.length === 0) return res.status(404).json({ error: 'Design not found' });
     
-    // ADD THIS: Format image URL
-    const PORT = process.env.PORT || 5000;
-    if (designs[0].image_url && !designs[0].image_url.startsWith('http')) {
-      designs[0].image_url = `http://localhost:${PORT}${designs[0].image_url}`;
-    }
+    // FIXED: Use getImageUrl helper
+    designs[0].image_url = getImageUrl(designs[0].image_url);
     
     const [history] = await global.db.promise().query(
       `SELECT m.*, u.username as admin_name 

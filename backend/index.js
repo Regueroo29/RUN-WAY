@@ -75,7 +75,7 @@ const PORT = process.env.PORT || 5000;
 const DB_HOST = process.env.DB_HOST || "localhost";
 const DB_USER = process.env.DB_USER || "root";
 const DB_PASSWORD = process.env.DB_PASSWORD || "";
-const DB_NAME = process.env.DB_NAME || "aphronique";  // <-- fixed default to match your TiDB
+const DB_NAME = process.env.DB_NAME || "aphronique";  // 
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 
