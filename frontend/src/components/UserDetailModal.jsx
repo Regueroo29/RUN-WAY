@@ -26,16 +26,19 @@ function UserDetailModal({ userId, onClose, onAction }) {
   };
 
   const handleSuspend = async () => {
-    if (!window.confirm('Are you sure you want to suspend this user?')) return;
+    const adminUser = JSON.parse(localStorage.getItem('user'));
+    
     try {
       await API.post(`/admin/users/${userId}/suspend`, {
-        reason: suspensionReason,
-        duration_days: suspensionDays ? parseInt(suspensionDays) : null
+        reason: suspendReason,
+        duration_days: suspensionDays
+      }, {
+        headers: {
+          'user-id': adminUser.user_id  // <-- THIS IS REQUIRED
+        }
       });
       alert('User suspended successfully');
-      fetchUserDetails();
-      setShowSuspendForm(false);
-      onAction();
+      onClose();
     } catch (err) {
       alert('Error suspending user');
     }
@@ -43,8 +46,11 @@ function UserDetailModal({ userId, onClose, onAction }) {
 
   const handleUnsuspend = async () => {
     if (!window.confirm('Unsuspend this user?')) return;
+    const adminUser = JSON.parse(localStorage.getItem('user'));
     try {
-      await API.post(`/admin/users/${userId}/unsuspend`);
+      await API.post(`/admin/users/${userId}/unsuspend`, {}, {
+        headers: { 'user-id': adminUser.user_id }
+      });
       alert('User unsuspended');
       fetchUserDetails();
       onAction();

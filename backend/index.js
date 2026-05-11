@@ -349,6 +349,7 @@ app.get("/api/designs", (req, res) => {
            (SELECT COUNT(*) FROM likes WHERE design_id = d.design_id) as like_count
     FROM designs d
     JOIN users u ON d.designer_id = u.user_id
+    WHERE d.status = 'active'
     ORDER BY d.created_at DESC
   `;
   
@@ -398,21 +399,30 @@ app.get("/api/designs", (req, res) => {
 
 app.get("/api/designs/designer/:designerId", (req, res) => {
   const designerId = req.params.designerId;
-  db.query(
-    `SELECT d.*, 
+  const viewerId = req.query.viewerId;
+  
+  let sql = `
+    SELECT d.*, 
      (SELECT AVG(rating) FROM ratings WHERE design_id = d.design_id) as avg_rating,
      (SELECT COUNT(*) FROM ratings WHERE design_id = d.design_id) as rating_count,
      (SELECT COUNT(*) FROM likes WHERE design_id = d.design_id) as like_count
      FROM designs d 
-     WHERE d.designer_id = ? 
-     ORDER BY d.created_at DESC`,
-    [designerId],
-    (err, results) => {
-      if (err) return res.status(500).json({ error: err.message });
-      results.forEach(d => d.image_url = getImageUrl(d.image_url));
-      res.json(results);
-    }
-  );
+     WHERE d.designer_id = ?`;
+  
+  const params = [designerId];
+  
+  // Visitors only see active designs; designer sees their own hidden posts too
+  if (!viewerId || viewerId != designerId) {
+    sql += ` AND d.status = 'active'`;
+  }
+  
+  sql += ` ORDER BY d.created_at DESC`;
+  
+  db.query(sql, params, (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    results.forEach(d => d.image_url = getImageUrl(d.image_url));
+    res.json(results);
+  });
 });
 
 // Create design (upload)

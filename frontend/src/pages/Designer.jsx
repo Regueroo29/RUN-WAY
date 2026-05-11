@@ -47,7 +47,7 @@ function Designer() {
       setUser(parsed);
       setProfileForm(parsed);
       setAvatarPreview(parsed.avatar_url);
-      fetchDesigns(parsed.user_id);
+      fetchDesigns(parsed.user_id, parsed.user_id);
     }
   }, [navigate]);
 
@@ -145,9 +145,9 @@ function Designer() {
     console.log("User:", user);
   }, [designs, activeTab, user]);
 
-  const fetchDesigns = async (userId) => {
+  const fetchDesigns = async (userId, viewerId) => {
     try {
-      const res = await API.get(`/designs/designer/${userId}`);
+      const res = await API.get(`/designs/designer/${userId}?viewerId=${viewerId || ''}`);
       setDesigns(res.data);
     } catch (err) {
       console.error("Error fetching designs:", err);
@@ -256,9 +256,7 @@ function Designer() {
       description: design.description || "",
       season: design.season || "Spring 2026",
       image: null, // No new image selected yet
-      imagePreview: design.image_url ? 
-        (design.image_url.startsWith('http') ? design.image_url : `http://localhost:5000${design.image_url}`) 
-        : "/RunWayIcon.jpg"
+      imagePreview: design.image_url || "/RunWayIcon.jpg"
     });
     setActiveTab("edit");
   };
@@ -295,7 +293,7 @@ function Designer() {
       alert("Design updated!");
       setEditingDesign(null);
       setActiveTab("gallery");
-      fetchDesigns(user.user_id);
+      fetchDesigns(user.user_id, user.user_id);
     } catch (err) {
       console.error("Update error:", err);
       alert(err.response?.data?.error || "Error updating design");
@@ -305,11 +303,12 @@ function Designer() {
   };
 
   const handleDelete = async (designId) => {
+    if (!user) return;
     if (!window.confirm("Delete this design permanently?")) return;
     
     try {
       await API.delete(`/designs/${designId}?designerId=${user.user_id}`);
-      fetchDesigns(user.user_id);
+      fetchDesigns(user.user_id, user.user_id);
     } catch (err) {
       alert("Error deleting design");
     }
@@ -425,8 +424,8 @@ function Designer() {
                 <div key={item.design_id} className="gallery-item real-post">
                   <div className="item-image">
                     <img 
-                      src={`${item.image_url?.startsWith('http') ? item.image_url : `http://localhost:5000${item.image_url}`}?t=${item.updated_at || Date.now()}`} 
-                      alt={item.title} 
+                        src={`${item.image_url}?t=${item.updated_at || Date.now()}`} 
+                        alt={item.title} 
                     />
                     <div className="item-actions">
                       <button onClick={() => handleEdit(item)}>✏️ Edit</button>

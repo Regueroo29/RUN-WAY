@@ -138,15 +138,17 @@ router.post('/users/:id/suspend', async (req, res) => {
     
     await global.db.promise().query(
       `UPDATE users SET status='suspended', suspension_reason=?, suspension_end_date=?, moderated_by=?, moderated_at=NOW() WHERE user_id=?`,
-      [reason, suspensionEnd, adminId, userId]
+      [reason, suspensionEnd, adminId || null, userId]
     );
     
-    await global.db.promise().query(
-      `INSERT INTO moderation_logs (admin_id, target_type, target_id, action, reason) VALUES (?, 'user', ?, 'suspend', ?)`,
-      [adminId, userId, reason]
-    );
+    // Only log if we have a valid adminId
+    if (adminId) {
+      await global.db.promise().query(
+        `INSERT INTO moderation_logs (admin_id, target_type, target_id, action, reason) VALUES (?, 'user', ?, 'suspend', ?)`,
+        [adminId, userId, reason]
+      );
+    }
     
-    // Real-time: Force logout suspended user if online
     if (global.io) {
       global.io.to(`user_${userId}`).emit('account_suspended', {
         reason: reason,
@@ -166,17 +168,19 @@ router.post('/users/:id/suspend', async (req, res) => {
 router.post('/users/:id/unsuspend', async (req, res) => {
   try {
     const userId = req.params.id;
-    const adminId = req.headers['user-id'];
+    const adminId = req.headers['user-id'] || req.user?.user_id;
     
     await global.db.promise().query(
       `UPDATE users SET status='active', suspension_reason=NULL, suspension_end_date=NULL WHERE user_id=?`,
       [userId]
     );
     
-    await global.db.promise().query(
-      `INSERT INTO moderation_logs (admin_id, target_type, target_id, action, reason) VALUES (?, 'user', ?, 'unsuspend', 'Reinstated')`,
-      [adminId, userId]
-    );
+    if (adminId) {
+      await global.db.promise().query(
+        `INSERT INTO moderation_logs (admin_id, target_type, target_id, action, reason) VALUES (?, 'user', ?, 'unsuspend', 'Reinstated')`,
+        [adminId, userId]
+      );
+    }
     
     await global.db.promise().query(
       `INSERT INTO user_notifications (user_id, type, message) VALUES (?, 'warning', 'Suspension lifted')`,
@@ -226,25 +230,29 @@ router.post('/designs/:id/moderate', async (req, res) => {
   try {
     const designId = req.params.id;
     const { action, reason } = req.body;
-    const adminId = req.headers['user-id'];
+    const adminId = req.headers['user-id'] || req.user?.user_id;
     
     if (action === 'delete') {
       await global.db.promise().query('DELETE FROM designs WHERE design_id = ?', [designId]);
-      await global.db.promise().query(
-        `INSERT INTO moderation_logs (admin_id, target_type, target_id, action, reason) VALUES (?, 'design', ?, 'delete', ?)`,
-        [adminId, designId, reason]
-      );
+      if (adminId) {
+        await global.db.promise().query(
+          `INSERT INTO moderation_logs (admin_id, target_type, target_id, action, reason) VALUES (?, 'design', ?, 'delete', ?)`,
+          [adminId, designId, reason]
+        );
+      }
     } else {
       const status = action === 'hide' ? 'hidden' : 'active';
       await global.db.promise().query(
         `UPDATE designs SET status=?, moderation_reason=?, moderated_by=?, moderated_at=NOW() WHERE design_id=?`,
-        [status, reason, adminId, designId]
+        [status, reason, adminId || null, designId]
       );
       
-      await global.db.promise().query(
-        `INSERT INTO moderation_logs (admin_id, target_type, target_id, action, reason) VALUES (?, 'design', ?, ?, ?)`,
-        [adminId, designId, action, reason]
-      );
+      if (adminId) {
+        await global.db.promise().query(
+          `INSERT INTO moderation_logs (admin_id, target_type, target_id, action, reason) VALUES (?, 'design', ?, ?, ?)`,
+          [adminId, designId, action, reason]
+        );
+      }
       
       const [designs] = await global.db.promise().query('SELECT designer_id, title FROM designs WHERE design_id = ?', [designId]);
       if (designs.length > 0) {
