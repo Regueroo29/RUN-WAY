@@ -75,7 +75,7 @@ const PORT = process.env.PORT || 5000;
 const DB_HOST = process.env.DB_HOST || "localhost";
 const DB_USER = process.env.DB_USER || "root";
 const DB_PASSWORD = process.env.DB_PASSWORD || "";
-const DB_NAME = process.env.DB_NAME || "aphronique_db";
+const DB_NAME = process.env.DB_NAME || "aphronique";  // <-- fixed default to match your TiDB
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 
@@ -87,49 +87,35 @@ const allowedOrigins = [
   'http://localhost:3000',
   'https://aphronique.com',
   'https://www.aphronique.com',
-  'https://run-way-8aes.vercel.app',  // <-- ADDED for Vercel preview (temporary) - replace with actual domain when ready
-  'https://aphronique.vercel.app'      // <-- ADDED this too (for future)
+  'https://run-way-8aes.vercel.app',
+  'https://aphronique.vercel.app'
 ];
 
-// Add Vercel preview URLs dynamically
 if (process.env.VERCEL_URL) {
   allowedOrigins.push(`https://${process.env.VERCEL_URL}`);
 }
 
-// app.use(cors({
-//   origin: function(origin, callback) {
-//     if (!origin) return callback(null, true);
-//     if (allowedOrigins.indexOf(origin) === -1) {
-//       console.log('CORS blocked:', origin);
-//       return callback(new Error('CORS policy violation'), false);
-//     }
-//     return callback(null, true);
-//   },
-//   credentials: true
-// }));
-
 app.use(cors({
-  origin: true,  // Allows ALL origins - uncomment above for strict CORS in production
+  origin: true,
   credentials: true
 }));
 
 app.use(express.json());
 
 // Static files (local only - production uses Cloudinary URLs directly)
-// -- changed to cloud
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // MySQL connection
 const db = mysql.createPool({
   host: DB_HOST,
-  port: process.env.DB_PORT || 3306,  // <-- THIS LINE for TiDB port 4000
+  port: process.env.DB_PORT || 3306,
   user: DB_USER,
   password: DB_PASSWORD,
   database: DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  ssl: isProduction ? { rejectUnauthorized: false } : false  // <-- TiDB 
+  ssl: isProduction ? { rejectUnauthorized: false } : false
 });
 
 global.db = db;
@@ -159,8 +145,8 @@ const logActivity = (user_id, action_type, target_id = null, details = '') => {
 // Helper: Get full image URL
 const getImageUrl = (pathOrUrl) => {
   if (!pathOrUrl) return null;
-  if (pathOrUrl.startsWith('http')) return pathOrUrl; // Already Cloudinary URL
-  return `${BASE_URL}${pathOrUrl}`; // Local URL
+  if (pathOrUrl.startsWith('http')) return pathOrUrl;
+  return `${BASE_URL}${pathOrUrl}`;
 };
 
 // ================= AUTH =================
@@ -255,7 +241,6 @@ app.post("/api/register", async (req, res) => {
   const { email, password, first_name, last_name, role, gender, date_of_birth } = req.body;
   
   try {
-    // Check if email exists
     const [existing] = await db.promise().query(
       "SELECT * FROM users WHERE email = ?", [email]
     );
@@ -264,19 +249,15 @@ app.post("/api/register", async (req, res) => {
       return res.status(400).json({ success: false, message: "Email already exists" });
     }
     
-    // Generate username from first + last name
     const username = first_name && last_name 
       ? `${first_name} ${last_name}` 
       : (first_name || last_name || email.split('@')[0]);
     
-    // Validate role
     const validRoles = ['visitor', 'designer', 'admin'];
     const userRole = validRoles.includes(role) ? role : 'visitor';
     
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
     
-    // Insert user
     const [result] = await db.promise().query(
       "INSERT INTO users (username, email, password, first_name, last_name, role, gender, date_of_birth) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       [username, email, hashedPassword, first_name, last_name, userRole, gender, date_of_birth]
@@ -342,7 +323,6 @@ app.post("/api/users/:id/avatar", upload.single("avatar"), (req, res) => {
   const userId = req.params.id;
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
   
-  // Cloudinary returns full URL in req.file.path, local returns path
   const avatarUrl = isProduction ? req.file.path : `/uploads/${req.file.filename}`;
   
   db.query(
@@ -509,7 +489,147 @@ app.post("/api/designs/:id/update-with-image", upload.single("image"), async (re
   }
 });
 
-// ... keep all your other routes (likes, ratings, follows, etc.) exactly the same ...
+// ================= LIKES =================
+app.post("/api/likes/toggle", (req, res) => {
+  const { user_id, design_id } = req.body;
+  
+  if (!user_id || !design_id) {
+    return res.status(400).json({ error: "user_id and design_id are required" });
+  }
+
+  db.query(
+    "SELECT * FROM likes WHERE user_id = ? AND design_id = ?",
+    [user_id, design_id],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      
+      if (result.length > 0) {
+        // Unlike
+        db.query(
+          "DELETE FROM likes WHERE user_id = ? AND design_id = ?",
+          [user_id, design_id],
+          (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ liked: false, message: "Like removed" });
+          }
+        );
+      } else {
+        // Like
+        db.query(
+          "INSERT INTO likes (user_id, design_id) VALUES (?, ?)",
+          [user_id, design_id],
+          (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            logActivity(user_id, 'like_design', design_id);
+            res.json({ liked: true, message: "Liked successfully" });
+          }
+        );
+      }
+    }
+  );
+});
+
+// ================= RATINGS =================
+app.post("/api/ratings", (req, res) => {
+  const { user_id, design_id, rating } = req.body;
+  
+  if (!user_id || !design_id || !rating) {
+    return res.status(400).json({ error: "user_id, design_id, and rating are required" });
+  }
+  
+  if (rating < 1 || rating > 5) {
+    return res.status(400).json({ error: "Rating must be between 1 and 5" });
+  }
+
+  db.query(
+    "SELECT * FROM ratings WHERE user_id = ? AND design_id = ?",
+    [user_id, design_id],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      
+      if (result.length > 0) {
+        // Update existing rating
+        db.query(
+          "UPDATE ratings SET rating = ? WHERE user_id = ? AND design_id = ?",
+          [rating, user_id, design_id],
+          (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            logActivity(user_id, 'rate_design', design_id, `Rated ${rating} stars`);
+            res.json({ message: "Rating updated", rating });
+          }
+        );
+      } else {
+        // Insert new rating
+        db.query(
+          "INSERT INTO ratings (user_id, design_id, rating) VALUES (?, ?, ?)",
+          [user_id, design_id, rating],
+          (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            logActivity(user_id, 'rate_design', design_id, `Rated ${rating} stars`);
+            res.json({ message: "Rating added", rating });
+          }
+        );
+      }
+    }
+  );
+});
+
+// ================= FOLLOWS =================
+app.post("/api/follows/toggle", (req, res) => {
+  const { follower_id, designer_id } = req.body;
+  
+  if (!follower_id || !designer_id) {
+    return res.status(400).json({ error: "follower_id and designer_id are required" });
+  }
+
+  db.query(
+    "SELECT * FROM follows WHERE follower_id = ? AND designer_id = ?",
+    [follower_id, designer_id],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      
+      if (result.length > 0) {
+        // Unfollow
+        db.query(
+          "DELETE FROM follows WHERE follower_id = ? AND designer_id = ?",
+          [follower_id, designer_id],
+          (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ following: false, message: "Unfollowed successfully" });
+          }
+        );
+      } else {
+        // Follow
+        db.query(
+          "INSERT INTO follows (follower_id, designer_id) VALUES (?, ?)",
+          [follower_id, designer_id],
+          (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            logActivity(follower_id, 'follow', designer_id);
+            res.json({ following: true, message: "Followed successfully" });
+          }
+        );
+      }
+    }
+  );
+});
+
+app.get("/api/follows/check", (req, res) => {
+  const { follower_id, designer_id } = req.query;
+  
+  if (!follower_id || !designer_id) {
+    return res.status(400).json({ error: "follower_id and designer_id are required" });
+  }
+
+  db.query(
+    "SELECT * FROM follows WHERE follower_id = ? AND designer_id = ?",
+    [follower_id, designer_id],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ following: result.length > 0 });
+    }
+  );
+});
 
 // Health check
 app.get("/api/health", (req, res) => {
