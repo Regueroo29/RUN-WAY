@@ -29,18 +29,19 @@ function UserDetailModal({ userId, onClose, onAction }) {
     const adminUser = JSON.parse(localStorage.getItem('user'));
     
     try {
-      await API.post(`/admin/users/${userId}/suspend`, {
+      const res = await API.post(`/admin/users/${userId}/suspend`, {
         reason: suspendReason,
         duration_days: suspensionDays
       }, {
         headers: {
-          'user-id': adminUser.user_id  // <-- THIS IS REQUIRED
+          'user-id': adminUser.user_id
         }
       });
       alert('User suspended successfully');
       onClose();
     } catch (err) {
-      alert('Error suspending user');
+      console.error("Full error:", err.response?.data);  // <-- ADD THIS
+      alert('Error suspending user: ' + (err.response?.data?.error || err.message));
     }
   };
 

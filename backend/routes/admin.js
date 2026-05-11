@@ -126,6 +126,7 @@ router.get('/users/:id/details', async (req, res) => {
 });
 
 // Suspend User
+// Suspend User
 router.post('/users/:id/suspend', async (req, res) => {
   try {
     const userId = req.params.id;
@@ -134,7 +135,13 @@ router.post('/users/:id/suspend', async (req, res) => {
     
     if (!reason) return res.status(400).json({ error: 'Reason required' });
     
-    const suspensionEnd = duration_days ? new Date(Date.now() + duration_days * 24 * 60 * 60 * 1000) : null;
+    // FIX: Format date properly for MySQL/TiDB
+    let suspensionEnd = null;
+    if (duration_days && !isNaN(duration_days)) {
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + parseInt(duration_days));
+      suspensionEnd = endDate.toISOString().slice(0, 19).replace('T', ' '); // MySQL datetime format
+    }
     
     await global.db.promise().query(
       `UPDATE users SET status='suspended', suspension_reason=?, suspension_end_date=?, moderated_by=?, moderated_at=NOW() WHERE user_id=?`,
@@ -160,7 +167,7 @@ router.post('/users/:id/suspend', async (req, res) => {
     res.json({ message: 'User suspended' });
   } catch (error) {
     console.error('Suspend error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message, details: error.sqlMessage || 'No SQL details' });
   }
 });
 
