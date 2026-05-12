@@ -496,6 +496,43 @@ app.post("/api/designs/:id/update-with-image", upload.single("image"), async (re
   }
 });
 
+// ================= DELETE DESIGN =================
+app.delete("/api/designs/:id", async (req, res) => {
+  const designId = req.params.id;
+  const { designer_id } = req.body; // or get from auth token
+
+  try {
+    // Verify the design exists and belongs to this designer
+    const [design] = await db.promise().query(
+      "SELECT * FROM designs WHERE design_id = ? AND designer_id = ?",
+      [designId, designer_id]
+    );
+
+    if (design.length === 0) {
+      return res.status(403).json({ 
+        error: "Unauthorized or design not found" 
+      });
+    }
+
+    // Delete the design (likes and ratings will cascade delete if FK is set)
+    await db.promise().query(
+      "DELETE FROM designs WHERE design_id = ?",
+      [designId]
+    );
+
+    logActivity(designer_id, 'delete_design', designId, `Deleted: ${design[0].title}`);
+
+    res.json({ 
+      success: true, 
+      message: "Design deleted successfully" 
+    });
+
+  } catch (err) {
+    console.error("Delete design error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ================= LIKES =================
 app.post("/api/likes/toggle", (req, res) => {
   const { user_id, design_id } = req.body;
