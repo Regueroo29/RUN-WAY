@@ -497,24 +497,39 @@ app.post("/api/designs/:id/update-with-image", upload.single("image"), async (re
 });
 
 // ================= DELETE DESIGN =================
+// ================= DELETE DESIGN =================
 app.delete("/api/designs/:id", async (req, res) => {
   const designId = req.params.id;
-  const { designer_id } = req.body; // or get from auth token
+  const designer_id = req.body.designer_id || req.query.designerId; // <-- FIX: also read query param
 
   try {
-    // Verify the design exists and belongs to this designer
+    if (!designer_id) {
+      return res.status(400).json({ error: "designer_id required" });
+    }
+
+    // Verify the design exists
     const [design] = await db.promise().query(
-      "SELECT * FROM designs WHERE design_id = ? AND designer_id = ?",
-      [designId, designer_id]
+      "SELECT * FROM designs WHERE design_id = ?",
+      [designId]
     );
 
     if (design.length === 0) {
-      return res.status(403).json({ 
-        error: "Unauthorized or design not found" 
-      });
+      return res.status(404).json({ error: "Design not found" });
     }
 
-    // Delete the design (likes and ratings will cascade delete if FK is set)
+    // Allow if owner OR admin
+    const [user] = await db.promise().query(
+      "SELECT role FROM users WHERE user_id = ?",
+      [designer_id]
+    );
+    
+    const isAdmin = user.length > 0 && user[0].role === 'admin';
+    const isOwner = design[0].designer_id == designer_id;
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ error: "Unauthorized" });
+    }
+
     await db.promise().query(
       "DELETE FROM designs WHERE design_id = ?",
       [designId]
@@ -522,10 +537,15 @@ app.delete("/api/designs/:id", async (req, res) => {
 
     logActivity(designer_id, 'delete_design', designId, `Deleted: ${design[0].title}`);
 
-    res.json({ 
-      success: true, 
-      message: "Design deleted successfully" 
-    });
+    // Emit real-time event
+    if (global.io) {
+      global.io.emit('design_deleted', { 
+        design_id: parseInt(designId),
+        designer_id: parseInt(design[0].designer_id)
+      });
+    }
+
+    res.json({ success: true, message: "Design deleted" });
 
   } catch (err) {
     console.error("Delete design error:", err);

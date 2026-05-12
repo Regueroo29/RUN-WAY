@@ -172,7 +172,7 @@ router.post('/users/:id/suspend', async (req, res) => {
       });
     }
     
-    logActivity(adminId, 'suspend', userId, `Suspended ${user.username}. Reason: ${reason}`);
+    logActivity(userId, 'suspend', null, `Suspended by admin. Reason: ${reason}`);
 
     res.json({ message: 'User suspended' });
   } catch (error) {
@@ -258,6 +258,13 @@ router.post('/designs/:id/moderate', async (req, res) => {
       );
       
       await global.db.promise().query('DELETE FROM designs WHERE design_id = ?', [designId]);
+
+        if (global.io) {
+          global.io.emit('design_deleted', { 
+            design_id: parseInt(designId),
+            designer_id: designInfo.length > 0 ? designInfo[0].designer_id : null
+          });
+        }
       
       if (adminId) {
         await global.db.promise().query(
@@ -276,6 +283,13 @@ router.post('/designs/:id/moderate', async (req, res) => {
         `UPDATE designs SET status=?, moderation_reason=?, moderated_by=?, moderated_at=NOW() WHERE design_id=?`,
         [status, reason, adminId || null, designId]
       );
+
+        if (global.io) {
+          global.io.emit('design_updated', { 
+            design_id: parseInt(designId), 
+            status: status 
+          });
+        }
       
       if (adminId) {
         await global.db.promise().query(
