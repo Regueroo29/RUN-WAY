@@ -497,17 +497,21 @@ app.post("/api/designs/:id/update-with-image", upload.single("image"), async (re
 });
 
 // ================= DELETE DESIGN =================
-// ================= DELETE DESIGN =================
 app.delete("/api/designs/:id", async (req, res) => {
   const designId = req.params.id;
-  const designer_id = req.body.designer_id || req.query.designerId; // <-- FIX: also read query param
+  const designer_id = req.body.designer_id || req.query.designerId;
 
   try {
     if (!designer_id) {
       return res.status(400).json({ error: "designer_id required" });
     }
 
-    // Verify the design exists
+    // Convert to number
+    const designerIdNum = parseInt(designer_id);
+    if (isNaN(designerIdNum)) {
+      return res.status(400).json({ error: "Invalid designer_id" });
+    }
+
     const [design] = await db.promise().query(
       "SELECT * FROM designs WHERE design_id = ?",
       [designId]
@@ -517,27 +521,22 @@ app.delete("/api/designs/:id", async (req, res) => {
       return res.status(404).json({ error: "Design not found" });
     }
 
-    // Allow if owner OR admin
     const [user] = await db.promise().query(
       "SELECT role FROM users WHERE user_id = ?",
-      [designer_id]
+      [designerIdNum]
     );
     
     const isAdmin = user.length > 0 && user[0].role === 'admin';
-    const isOwner = design[0].designer_id == designer_id;
+    const isOwner = design[0].designer_id == designerIdNum;
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({ error: "Unauthorized" });
     }
 
-    await db.promise().query(
-      "DELETE FROM designs WHERE design_id = ?",
-      [designId]
-    );
+    await db.promise().query("DELETE FROM designs WHERE design_id = ?", [designId]);
 
-    logActivity(designer_id, 'delete_design', designId, `Deleted: ${design[0].title}`);
+    logActivity(designerIdNum, 'delete_design', designId, `Deleted: ${design[0].title}`);
 
-    // Emit real-time event
     if (global.io) {
       global.io.emit('design_deleted', { 
         design_id: parseInt(designId),
@@ -549,7 +548,7 @@ app.delete("/api/designs/:id", async (req, res) => {
 
   } catch (err) {
     console.error("Delete design error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.message, stack: err.stack });
   }
 });
 
