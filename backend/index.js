@@ -24,7 +24,7 @@ cloudinary.config({
 const cloudinaryStorage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: 'runway',
+    folder: 'aphronique',
     allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'gif'],
     transformation: [{ quality: 'auto' }]
   }
