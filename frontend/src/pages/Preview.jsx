@@ -48,7 +48,7 @@ function Preview() {
           <div className="preview-showcase">
             <img src="/registerimage.jpg" alt="Fashion Preview" />
             <div className="showcase-text">
-              <span>Aphronique</span>
+              <span>RUN-WAY</span>
               <span>2026 COLLECTION</span>
             </div>
           </div>

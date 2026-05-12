@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react"; {/* THESE CODES AT THE TOP ARE THE ONES THAT ARE IMPORTING THE LIBRARIES THAT TYPE SHI JAHAHAH */}
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useSocket } from '../context/SocketContext';
 import API from "../services/api";
@@ -13,7 +13,6 @@ function Designer() {
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef(null);
   
-  // SEPARATE states for upload and edit
   const [uploadForm, setUploadForm] = useState({
     title: "",
     description: "",
@@ -30,7 +29,6 @@ function Designer() {
     imagePreview: "/RunWayIcon.jpg"
   });
 
-  // Profile edit
   const [editProfileMode, setEditProfileMode] = useState(false);
   const [profileForm, setProfileForm] = useState({});
   const [avatarFile, setAvatarFile] = useState(null);
@@ -57,19 +55,6 @@ function Designer() {
     }
   }, [activeTab]);
 
-  useEffect(() => {
-    if (!socket) return;
-    
-    socket.on('design_uploaded', (data) => {
-      // If it's not our own design, we could show a notification
-      if (data.designer_id !== user?.user_id) {
-        console.log('New design uploaded by:', data.designer_name);
-      }
-    });
-    
-    return () => socket.off('design_uploaded');
-  }, [socket, user]);
-
   const fetchFreshUserData = async () => {
     try {
       const res = await API.get(`/users/${user.user_id}`);
@@ -87,8 +72,11 @@ function Designer() {
     if (!socket) return;
 
     socket.on("design_uploaded", (data) => {
-      if (data.designer_id !== user?.user_id) {
-        console.log("New design uploaded by:", data.designer_name);
+      if (data.designer_id === user?.user_id) {
+        setDesigns((prev) => {
+          if (prev.find(d => d.design_id === data.design_id)) return prev;
+          return [data, ...prev];
+        });
       }
     });
 
@@ -117,11 +105,17 @@ function Designer() {
     });
 
     socket.on("design_deleted", (data) => {
-      if (data.designer_id === user?.user_id) {
-        setDesigns((prev) =>
-          prev.filter((d) => d.design_id !== data.design_id)
-        );
-      }
+      setDesigns((prev) =>
+        prev.filter((d) => d.design_id !== data.design_id)
+      );
+    });
+
+    socket.on("design_updated", (data) => {
+      setDesigns((prev) =>
+        prev.map((d) =>
+          d.design_id === data.design_id ? { ...d, status: data.status } : d
+        )
+      );
     });
 
     socket.on("account_suspended", (data) => {
@@ -135,15 +129,10 @@ function Designer() {
       socket.off("design_liked");
       socket.off("design_rated");
       socket.off("design_deleted");
+      socket.off("design_updated");
       socket.off("account_suspended");
     };
   }, [socket, user, navigate]);
-
-  useEffect(() => {
-    console.log("Designs loaded:", designs.length);
-    console.log("Active tab:", activeTab);
-    console.log("User:", user);
-  }, [designs, activeTab, user]);
 
   const fetchDesigns = async (userId, viewerId) => {
     try {
@@ -154,7 +143,6 @@ function Designer() {
     }
   };
 
-  // RESET upload form when entering upload tab
   const resetUploadForm = () => {
     setUploadForm({
       title: "",
@@ -165,10 +153,9 @@ function Designer() {
     });
   };
 
-  // Handle tab changes with reset
   const handleTabChange = (tab) => {
     if (tab === "upload") {
-      resetUploadForm(); // Clear upload form when entering upload
+      resetUploadForm();
     }
     setActiveTab(tab);
   };
@@ -207,37 +194,9 @@ function Designer() {
       formData.append("description", uploadForm.description);
       formData.append("season", uploadForm.season);
       
-      const res = await API.post("/designs", formData, {
+      await API.post("/designs", formData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
-      
-      // Emit real-time event to all clients
-      if (socket) {
-        socket.emit('new_design', {
-          design_id: res.data.design_id,
-          designer_id: user.user_id,
-          designer_name: user.username,
-          title: uploadForm.title,
-          image_url: res.data.image_url,
-          season: uploadForm.season,
-          created_at: new Date().toISOString()
-        });
-      }
-      
-      // Optimistic UI update - add to gallery immediately
-      const newDesign = {
-        design_id: res.data.design_id,
-        title: uploadForm.title,
-        description: uploadForm.description,
-        season: uploadForm.season,
-        image_url: res.data.image_url,
-        like_count: 0,
-        avg_rating: 0,
-        rating_count: 0,
-        created_at: new Date().toISOString()
-      };
-      
-      setDesigns(prev => [newDesign, ...prev]);
       
       setActiveTab("gallery");
       resetUploadForm();
@@ -255,7 +214,7 @@ function Designer() {
       title: design.title,
       description: design.description || "",
       season: design.season || "Spring 2026",
-      image: null, // No new image selected yet
+      image: null,
       imagePreview: design.image_url || "/RunWayIcon.jpg"
     });
     setActiveTab("edit");
@@ -266,9 +225,7 @@ function Designer() {
     
     setLoading(true);
     try {
-      // Check if a new image was selected
       if (editForm.image instanceof File) {
-        // If new image, use FormData
         const formData = new FormData();
         formData.append("image", editForm.image);
         formData.append("designer_id", user.user_id);
@@ -276,12 +233,10 @@ function Designer() {
         formData.append("description", editForm.description);
         formData.append("season", editForm.season);
         
-        // FIX: Use correct endpoint without double /api
         await API.post(`/designs/${editingDesign.design_id}/update-with-image`, formData, {
           headers: { "Content-Type": "multipart/form-data" }
         });
       } else {
-        // No new image, just update text
         await API.put(`/designs/${editingDesign.design_id}`, {
           designer_id: user.user_id,
           title: editForm.title,
@@ -308,13 +263,13 @@ function Designer() {
     
     try {
       await API.delete(`/designs/${designId}?designerId=${user.user_id}`);
-      fetchDesigns(user.user_id, user.user_id);
+      setDesigns(prev => prev.filter(d => d.design_id !== designId));
     } catch (err) {
-      alert("Error deleting design");
+      console.error("Delete error:", err.response?.data || err.message);
+      alert(err.response?.data?.error || "Error deleting design");
     }
   };
 
-  // Profile functions
   const handleAvatarClick = () => {
     document.getElementById('designer-avatar-input').click();
   };
@@ -330,7 +285,6 @@ function Designer() {
   const handleProfileUpdate = async () => {
     setLoading(true);
     try {
-      // Upload avatar if changed
       if (avatarFile) {
         const formData = new FormData();
         formData.append("avatar", avatarFile);
@@ -340,7 +294,6 @@ function Designer() {
         profileForm.avatar_url = res.data.avatar_url;
       }
       
-      // Update profile
       await API.put(`/users/${user.user_id}/profile`, profileForm);
       
       const updatedUser = { ...user, ...profileForm };
@@ -415,7 +368,6 @@ function Designer() {
       </header>
 
       <main className="studio-content">
-        {/* GALLERY TAB */}
         {activeTab === "gallery" && (
           <div className="gallery-view">
             <h2 className="view-title">My Designs ({designs.length})</h2>
@@ -450,7 +402,6 @@ function Designer() {
           </div>
         )}
 
-        {/* UPLOAD TAB - UNIQUE LAYOUT */}
         {activeTab === "upload" && (
           <div className="upload-view upload-layout">
             <div className="upload-container">
@@ -534,7 +485,6 @@ function Designer() {
           </div>
         )}
 
-        {/* EDIT TAB - DIFFERENT LAYOUT */}
         {activeTab === "edit" && (
           <div className="upload-view edit-layout">
             <div className="upload-container">
@@ -550,7 +500,6 @@ function Designer() {
               </div>
               
               <div className="edit-content">
-                {/* Edit has image on left, form on right but different styling */}
                 <div className="edit-image-section">
                   <div className="current-image-label">Current Image</div>
                   <div className="preview-frame edit-preview-box" onClick={() => fileInputRef.current?.click()}>
@@ -625,7 +574,6 @@ function Designer() {
           </div>
         )}
 
-        {/* STATS TAB */}
         {activeTab === "stats" && (
           <div className="stats-view">
             <h2 className="view-title">Performance Stats</h2>
@@ -658,7 +606,6 @@ function Designer() {
           </div>
         )}
 
-        {/* PROFILE TAB */}
         {activeTab === "profile" && (
           <div className="profile-view">
             <div className="profile-layout">
@@ -824,7 +771,6 @@ function Designer() {
           </div>
         )}
 
-        {/* LOGOUT CONFIRMATION */}
         {showLogoutConfirm && (
           <div className="logout-modal">
             <div className="logout-content">

@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import API from "../services/api";
+import { useSocket } from '../context/SocketContext';
 import "./Dashboard.css";
 
 function Dashboard() {
@@ -12,6 +13,7 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedDesign, setSelectedDesign] = useState(null);
   const navigate = useNavigate();
+  const socket = useSocket();
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
@@ -23,6 +25,41 @@ function Dashboard() {
       fetchData(parsed.user_id);
     }
   }, [navigate]);
+
+  // Listen for real-time events
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on('design_uploaded', (newDesign) => {
+      // If backend sends incomplete data, refetch instead
+      if (!newDesign.designer_name) {
+        if (user?.user_id) fetchData(user.user_id);
+        return;
+      }
+      setDesigns(prev => {
+        if (prev.find(d => d.design_id === newDesign.design_id)) return prev;
+        return [newDesign, ...prev];
+      });
+    });
+
+    socket.on('design_deleted', ({ design_id }) => {
+      setDesigns(prev => prev.filter(d => d.design_id !== design_id));
+      setLikedDesigns(prev => prev.filter(id => id !== design_id));
+      if (selectedDesign?.design_id === design_id) setSelectedDesign(null);
+    });
+
+    socket.on('design_updated', ({ design_id, status }) => {
+      setDesigns(prev => prev.map(d => 
+        d.design_id === design_id ? { ...d, status } : d
+      ));
+    });
+
+    return () => {
+      socket.off('design_uploaded');
+      socket.off('design_deleted');
+      socket.off('design_updated');
+    };
+  }, [socket, user, selectedDesign]);
 
   const fetchData = async (userId) => {
     try {
@@ -54,7 +91,6 @@ function Dashboard() {
     }
   };
 
-  // Filter designs based on active tab
   const getFilteredDesigns = () => {
     if (activeTab === "trending") {
       return [...designs].sort((a, b) => {
@@ -79,7 +115,6 @@ function Dashboard() {
     return designs;
   };
 
-  // Group liked designs by designer (most recently liked designers first)
   const groupedActivity = useMemo(() => {
     const likedInOrder = likedDesigns
       .map(id => designs.find(d => d.design_id === id))
@@ -426,7 +461,6 @@ function Dashboard() {
         )}
       </main>
 
-      {/* Post Detail Modal */}
       {selectedDesign && (
         <div className="modal-overlay" onClick={() => setSelectedDesign(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
