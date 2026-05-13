@@ -1,11 +1,10 @@
-/* DESIGNER PROFILE CSS - FIXED SCROLLING */
+/* DESIGNER PROFILE CSS — Dashboard-style unified scroll */
 
 .designer-public-profile {
   min-height: 100vh;
   background: #1a1a1a;
   color: white;
   position: relative;
-  overflow-x: hidden;
 }
 
 /* Scroll Progress Bar */
@@ -19,6 +18,7 @@
   transition: width 0.1s ease-out;
 }
 
+/* Fixed Background (like Dashboard header area) */
 .designer-hero-bg {
   position: fixed;
   top: 0;
@@ -26,7 +26,7 @@
   right: 0;
   height: 50vh;
   z-index: 0;
-  pointer-events: none; /* Let clicks pass through to content */
+  pointer-events: none;
 }
 
 .designer-hero-bg img {
@@ -42,6 +42,7 @@
   background: linear-gradient(to bottom, rgba(26,10,10,0.3), #1a1a1a);
 }
 
+/* Fixed Back Button */
 .back-to-discovery {
   position: fixed;
   top: 30px;
@@ -65,7 +66,10 @@
   transform: translateX(-5px);
 }
 
-/* Floating Navigation - FIXED: Better positioning */
+/* ============================================
+   FLOATING NAV (right side dots)
+   ============================================ */
+
 .floating-nav {
   position: fixed;
   right: 30px;
@@ -115,7 +119,10 @@
   visibility: visible;
 }
 
-/* Scroll to Top Button */
+/* ============================================
+   SCROLL TO TOP BUTTON
+   ============================================ */
+
 .scroll-to-top-btn {
   position: fixed;
   bottom: 30px;
@@ -143,35 +150,33 @@
 }
 
 @keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* ============================================
-   MAIN CONTENT - FIXED: Unified scroll
-   ============================================ */
+   MAIN CONTENT — Dashboard-style layout
+   ============================================
+   
+   Key: The entire page scrolls as one unit.
+   The sidebar is sticky within the flow.
+   No independent scrolling containers.
+*/
 
 .designer-profile-content {
   position: relative;
   z-index: 1;
   max-width: 1400px;
   margin: 0 auto;
-  padding: 150px 40px 80px; /* Added bottom padding for footer space */
+  padding: 150px 40px 80px;
   display: grid;
   grid-template-columns: 350px 1fr;
   gap: 60px;
   align-items: start;
-  /* REMOVED: height, overflow properties - let the page scroll naturally */
 }
 
 /* ============================================
-   LEFT SIDEBAR - FIXED: Sticky but no independent scroll
+   LEFT SIDEBAR — Sticky, scrolls with page
    ============================================ */
 
 .designer-info-panel {
@@ -180,33 +185,11 @@
   border-radius: 20px;
   padding: 40px;
   text-align: center;
+  
+  /* Dashboard-style: sticky within the grid, no max-height */
   position: sticky;
-  top: 100px; /* Sticks below the hero area */
-  /* REMOVED: max-height, overflow-y - sidebar scrolls with page now */
-  align-self: start; /* Prevents grid from stretching it */
-}
-
-/* Only add scroll if viewport is very short, but prefer page scroll */
-@media (max-height: 800px) {
-  .designer-info-panel {
-    max-height: calc(100vh - 120px);
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(200, 180, 160, 0.3) transparent;
-  }
-  
-  .designer-info-panel::-webkit-scrollbar {
-    width: 6px;
-  }
-  
-  .designer-info-panel::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  
-  .designer-info-panel::-webkit-scrollbar-thumb {
-    background: rgba(200, 180, 160, 0.3);
-    border-radius: 3px;
-  }
+  top: 100px;
+  align-self: start;
 }
 
 .designer-avatar-large {
@@ -217,7 +200,6 @@
   margin: 0 auto 20px;
   border: 3px solid rgba(200, 180, 160, 0.5);
   box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-  flex-shrink: 0; /* Prevent shrinking */
 }
 
 .designer-avatar-large img {
@@ -242,7 +224,7 @@
   font-weight: 300;
   margin: 0 0 5px;
   letter-spacing: 1px;
-  word-break: break-word; /* Prevent long names from breaking layout */
+  word-break: break-word;
 }
 
 .designer-handle {
@@ -258,10 +240,7 @@
   font-style: italic;
 }
 
-/* ============================================
-   STATS ROW - FIXED: Better spacing
-   ============================================ */
-
+/* Stats Row */
 .designer-stats-row {
   display: flex;
   justify-content: center;
@@ -339,6 +318,7 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* Follow Button */
 .follow-designer-btn {
   width: 100%;
   padding: 12px;
@@ -365,10 +345,7 @@
   color: rgba(100, 255, 100, 1);
 }
 
-/* ============================================
-   BIO & LINKS SECTIONS - FIXED: Better containment
-   ============================================ */
-
+/* Bio & Links */
 .designer-bio-section,
 .designer-links-section {
   text-align: left;
@@ -388,7 +365,7 @@
   color: rgba(255,255,255,0.7);
   line-height: 1.6;
   font-size: 14px;
-  word-wrap: break-word; /* Prevent long text overflow */
+  word-wrap: break-word;
 }
 
 .no-bio {
@@ -405,7 +382,7 @@
   text-decoration: none;
   margin-bottom: 8px;
   transition: all 0.3s;
-  word-break: break-all; /* Break long URLs */
+  word-break: break-all;
 }
 
 .designer-link:hover {
@@ -421,12 +398,12 @@
 }
 
 /* ============================================
-   RIGHT PANEL - FIXED: Natural flow, no forced height
+   RIGHT PANEL — Natural flow, no scroll container
    ============================================ */
 
 .designer-works-panel {
-  /* REMOVED: min-height, overflow - let content determine height */
-  padding-bottom: 40px; /* Space before end marker */
+  /* No height restrictions, flows with page */
+  padding-bottom: 40px;
 }
 
 .works-title {
@@ -539,7 +516,7 @@
 }
 
 /* ============================================
-   END OF COLLECTIONS - FIXED: Proper centering
+   END OF COLLECTIONS
    ============================================ */
 
 .no-designs-container {
@@ -635,7 +612,7 @@
 }
 
 /* ============================================
-   RESPONSIVE - FIXED: Better mobile handling
+   RESPONSIVE
    ============================================ */
 
 @media (max-width: 968px) {
@@ -646,10 +623,8 @@
   }
   
   .designer-info-panel {
-    position: static; /* Remove sticky on mobile */
-    max-height: none;
-    overflow-y: visible;
-    order: -1; /* Move sidebar above content on mobile */
+    position: static;
+    order: -1;
   }
 
   .floating-nav {

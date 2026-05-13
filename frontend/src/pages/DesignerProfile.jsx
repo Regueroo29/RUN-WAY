@@ -1,4 +1,4 @@
-// DESIGNER PROFILE JSX - FIXED SCROLLING
+// DESIGNER PROFILE JSX 
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -17,7 +17,7 @@ function DesignerProfile() {
   const [scrollProgress, setScrollProgress] = useState(0);
   const [showScrollTop, setShowScrollTop] = useState(false);
   
-  // Refs for scroll targets
+  // Refs for scroll targets (like Dashboard's section refs)
   const worksSectionRef = useRef(null);
   const aboutSectionRef = useRef(null);
   const topRef = useRef(null);
@@ -35,7 +35,7 @@ function DesignerProfile() {
     }
   }, [id, currentUser]);
 
-  // FIXED: Better scroll progress tracking with throttling
+  // Dashboard-style scroll tracking: single page scroll, no containers
   useEffect(() => {
     let ticking = false;
     
@@ -47,7 +47,7 @@ function DesignerProfile() {
           const progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
           
           setScrollProgress(Math.min(100, Math.max(0, progress)));
-          setShowScrollTop(scrollTop > 300); // Show button after scrolling 300px
+          setShowScrollTop(scrollTop > 300);
           
           ticking = false;
         });
@@ -64,14 +64,10 @@ function DesignerProfile() {
       setLoading(true);
       setError(null);
       
-      console.log("Fetching designer:", id);
-      
       const designerRes = await API.get(`/users/${id}`);
-      console.log("Designer data:", designerRes.data);
       setDesigner(designerRes.data);
       
       const designsRes = await API.get(`/designs/designer/${id}`);
-      console.log("Designs data:", designsRes.data);
       setDesigns(designsRes.data);
       
       if (currentUser && currentUser.user_id !== parseInt(id)) {
@@ -105,7 +101,6 @@ function DesignerProfile() {
       
       setIsFollowing(res.data.following);
       
-      // FIXED: Update follower count correctly based on response
       setDesigner(prev => ({
         ...prev,
         follower_count: res.data.following 
@@ -118,9 +113,9 @@ function DesignerProfile() {
     }
   };
 
-  // FIXED: Smooth scroll functions with offset for fixed header
+  // Dashboard-style smooth scroll with offset
   const scrollToWorks = useCallback(() => {
-    const offset = 80; // Account for any fixed header
+    const offset = 100; // Space for fixed elements
     const element = worksSectionRef.current;
     if (element) {
       const elementPosition = element.getBoundingClientRect().top + window.scrollY;
@@ -132,7 +127,7 @@ function DesignerProfile() {
   }, []);
 
   const scrollToAbout = useCallback(() => {
-    const offset = 80;
+    const offset = 100;
     const element = aboutSectionRef.current;
     if (element) {
       const elementPosition = element.getBoundingClientRect().top + window.scrollY;
@@ -179,18 +174,18 @@ function DesignerProfile() {
       {/* Scroll Progress Bar */}
       <div className="scroll-progress-bar" style={{ width: `${scrollProgress}%` }}></div>
 
-      {/* Background */}
+      {/* Fixed Background (like Dashboard header) */}
       <div className="designer-hero-bg">
         <img src="/bgm.jpg" alt="Background" />
         <div className="hero-overlay"></div>
       </div>
 
-      {/* Back Button */}
+      {/* Fixed Back Button */}
       <button className="back-to-discovery" onClick={() => navigate("/dashboard")}>
         ← BACK TO DISCOVERY
       </button>
 
-      {/* Floating Navigation */}
+      {/* Floating Navigation Dots */}
       <nav className="floating-nav">
         <button onClick={scrollToTop} className="nav-dot" title="Top">
           <span className="nav-tooltip">Top</span>
@@ -203,16 +198,17 @@ function DesignerProfile() {
         </button>
       </nav>
 
-      {/* Scroll to Top Button - FIXED: Better visibility logic */}
+      {/* Scroll to Top Button */}
       {showScrollTop && (
         <button className="scroll-to-top-btn" onClick={scrollToTop} aria-label="Scroll to top">
           ↑
         </button>
       )}
 
-      {/* Main Content */}
+      {/* Main Content — Dashboard-style: single scrollable area */}
       <div className="designer-profile-content">
-        {/* Left Sidebar */}
+        
+        {/* Left Sidebar — sticky, scrolls WITH the page */}
         <div className="designer-info-panel">
           <div className="designer-avatar-large">
             {designer.avatar_url ? (
@@ -261,7 +257,7 @@ function DesignerProfile() {
             </button>
           )}
 
-          {/* FIXED: About section ref moved here for proper scroll target */}
+          {/* About Section — scroll target */}
           <div className="designer-bio-section" ref={aboutSectionRef}>
             <h3>About</h3>
             {designer.bio ? (
@@ -314,9 +310,10 @@ function DesignerProfile() {
           </div>
         </div>
 
-        {/* Right Side - Designs */}
+        {/* Right Panel — Collections, flows naturally with page */}
         <div className="designer-works-panel" ref={worksSectionRef}>
           <h2 className="works-title">Collections</h2>
+          
           {designs.length === 0 ? (
             <div className="no-designs-container">
               <p className="no-designs">No designs uploaded yet</p>
