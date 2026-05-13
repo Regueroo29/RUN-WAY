@@ -1,3 +1,16 @@
+# Root .gitignore — RUN-WAY/
+# ==========================
+
+# NEVER commit node_modules anywhere
+node_modules/
+**/node_modules/
+
+# NEVER commit package files in root (root is not a Node project)
+/package.json
+/package-lock.json
+/yarn.lock
+/pnpm-lock.yaml
+
 # Dependencies
 node_modules/
 frontend/node_modules/
