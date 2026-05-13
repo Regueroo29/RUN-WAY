@@ -461,7 +461,6 @@ function Designer() {
           
           {showUserMenu && (
             <div className="dropdown-menu studio-dropdown">
-              <Link to="/dashboard" onClick={() => setShowUserMenu(false)}>🏠 Discover</Link>
               <button onClick={() => { setShowUserMenu(false); setActiveTab("profile"); }}>
                 👤 Profile
               </button>
