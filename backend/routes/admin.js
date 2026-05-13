@@ -1,3 +1,4 @@
+
 const express = require('express');
 const router = express.Router();
 
@@ -81,11 +82,11 @@ router.get('/activities', async (req, res) => {
       JOIN users u ON al.user_id = u.user_id`;
     
     if (filter === 'posts') {
-      query += ` WHERE al.action_type IN ('upload_design', 'edit_design', 'delete_design')`;
+      query += ` WHERE al.action_type IN ('upload_design', 'update_design', 'delete_design')`;
     } else if (filter === 'updates') {
       query += ` WHERE al.action_type IN ('update_profile', 'password_change', 'switch_role')`;
     } else if (filter === 'interactions') {
-      query += ` WHERE al.action_type IN ('like_design', 'follow', 'rate_design')`;
+      query += ` WHERE al.action_type IN ('like_design', 'unlike_design', 'follow', 'unfollow', 'rate_design', 'comment', 'delete_comment')`;
     } else if (filter === 'moderation') {
       query += ` WHERE al.action_type IN ('hide_design', 'unhide_design', 'suspend', 'unsuspend', 'delete_design')`;
     }

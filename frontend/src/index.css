@@ -3047,12 +3047,17 @@ html, body, #root {
 
 /* Activity action type colors */
 .activity-action.like_design { background: rgba(255, 0, 100, 0.2); color: #ff6b9d; }
+.activity-action.unlike_design { background: rgba(255, 0, 100, 0.1); color: #ff6b9d; opacity: 0.8; }
 .activity-action.follow { background: rgba(0, 100, 255, 0.2); color: #6bb6ff; }
+.activity-action.unfollow { background: rgba(0, 100, 255, 0.1); color: #6bb6ff; opacity: 0.8; }
 .activity-action.upload_design { background: rgba(0, 255, 100, 0.2); color: #6bff9d; }
+.activity-action.update_design { background: rgba(0, 255, 100, 0.15); color: #6bff9d; }
 .activity-action.login { background: rgba(255, 255, 255, 0.1); color: #aaa; }
 .activity-action.register { background: rgba(255, 200, 0, 0.2); color: #ffd700; }
 .activity-action.update_profile { background: rgba(150, 0, 255, 0.2); color: #d19dff; }
 .activity-action.password_change { background: rgba(255, 100, 0, 0.2); color: #ffaa00; }
+.activity-action.comment { background: rgba(0, 200, 255, 0.2); color: #6be5ff; }
+.activity-action.delete_comment { background: rgba(255, 50, 50, 0.2); color: #ff6b6b; }
 .activity-action.hide_design { background: rgba(255, 100, 0, 0.2); color: #ffaa00; }
 .activity-action.unhide_design { background: rgba(0, 255, 100, 0.2); color: #6bff9d; }
 .activity-action.suspend { background: rgba(255, 0, 0, 0.2); color: #ff6b6b; }

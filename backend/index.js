@@ -503,6 +503,8 @@ app.delete("/api/comments/:id", async (req, res) => {
 
     await db.promise().query("DELETE FROM comments WHERE comment_id = ?", [commentId]);
 
+    logActivity(user_id, 'delete_comment', comment.design_id, `Deleted comment on design #${comment.design_id}`);
+
     if (global.io) {
       global.io.emit('comment_deleted', { 
         comment_id: parseInt(commentId),
@@ -707,6 +709,7 @@ app.post("/api/likes/toggle", (req, res) => {
           [user_id, design_id],
           (err) => {
             if (err) return res.status(500).json({ error: err.message });
+            logActivity(user_id, 'unlike_design', design_id);
             res.json({ liked: false, message: "Like removed" });
           }
         );
@@ -792,6 +795,7 @@ app.post("/api/follows/toggle", (req, res) => {
           [follower_id, designer_id],
           (err) => {
             if (err) return res.status(500).json({ error: err.message });
+            logActivity(follower_id, 'unfollow', designer_id);
             res.json({ following: false, message: "Unfollowed successfully" });
           }
         );
