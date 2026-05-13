@@ -547,10 +547,10 @@ function Designer() {
                       value={editForm.season}
                       onChange={(e) => setEditForm({...editForm, season: e.target.value})}
                     >
-                      <option>Spring 2026</option>
-                      <option>Summer 2026</option>
-                      <option>Fall 2026</option>
-                      <option>Winter 2026</option>
+                      <option>Spring</option>
+                      <option>Summer</option>
+                      <option>Fall</option>
+                      <option>Winter</option>
                     </select>
                   </div>
                   
