@@ -526,7 +526,7 @@ app.get("/api/designs/designer/:designerId", (req, res) => {
     SELECT d.*, 
      (SELECT AVG(rating) FROM ratings WHERE design_id = d.design_id) as avg_rating,
      (SELECT COUNT(*) FROM ratings WHERE design_id = d.design_id) as rating_count,
-     (SELECT COUNT(*) FROM likes WHERE design_id = d.design_id) as like_count
+     (SELECT COUNT(*) FROM likes WHERE design_id = d.design_id) as like_count,
      (SELECT COUNT(*) FROM comments WHERE design_id = d.design_id) as comment_count
      FROM designs d 
      WHERE d.designer_id = ?`;
