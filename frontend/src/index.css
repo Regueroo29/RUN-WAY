@@ -2471,6 +2471,261 @@ html, body, #root {
 }
 
 /* ============================================
+   DESIGNER COMMENTS VIEW MODAL
+   ============================================ */
+
+/* ============================================
+   COMMENT ITEM STYLES (Shared / Designer View)
+   ============================================ */
+
+.modal-close {
+  position: absolute;
+  top: 15px;
+  right: 20px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 28px;
+  cursor: pointer;
+  z-index: 10;
+  transition: color 0.2s;
+  line-height: 1;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-close:hover {
+  color: white;
+}
+
+.item-stats {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  align-items: center;
+}
+
+.comment-item {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.comment-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 2px solid rgba(200, 180, 160, 0.3);
+}
+
+.comment-avatar-placeholder {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #a47148 0%, #8b5a3c 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+  flex-shrink: 0;
+}
+
+.comment-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.comment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.comment-author {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(200, 180, 160, 1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.comment-role-badge {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.comment-role-badge.designer {
+  background: rgba(200, 180, 160, 0.2);
+  color: rgba(200, 180, 160, 1);
+}
+
+.comment-role-badge.visitor {
+  background: rgba(100, 150, 200, 0.2);
+  color: rgba(100, 180, 255, 1);
+}
+
+.comment-role-badge.admin {
+  background: rgba(200, 50, 50, 0.2);
+  color: rgba(255, 100, 100, 1);
+}
+
+.comment-time {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: 0.5px;
+}
+
+.comment-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.85);
+  word-wrap: break-word;
+}
+
+.empty-comments {
+  text-align: center;
+  padding: 40px 20px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+  letter-spacing: 1px;
+}
+
+.comments-view-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 20px;
+  animation: fadeIn 0.3s ease;
+}
+
+.comments-view-content {
+  background: #1a1a1a;
+  border: 1px solid rgba(200, 180, 160, 0.2);
+  border-radius: 16px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 85vh;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
+  animation: slideUp 0.3s ease;
+}
+
+.comments-view-header {
+  padding: 25px 25px 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.comments-view-header h3 {
+  margin: 0 0 8px 0;
+  font-size: 20px;
+  font-weight: 300;
+  letter-spacing: 1px;
+  color: rgba(200, 180, 160, 1);
+}
+
+.comments-view-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.comments-view-image {
+  height: 200px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #000;
+}
+
+.comments-view-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.comments-view-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 25px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(160, 120, 90, 0.5) transparent;
+}
+
+.comments-view-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.comments-view-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.comments-view-list::-webkit-scrollbar-thumb {
+  background: rgba(160, 120, 90, 0.5);
+  border-radius: 3px;
+}
+
+/* Clickable comment count on gallery cards */
+.comment-count-clickable {
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.comment-count-clickable:hover {
+  background: rgba(200, 180, 160, 0.15);
+  color: rgba(200, 180, 160, 1);
+}
+
+/* Designer view comment items (slightly different from dashboard) */
+.comment-item.designer-view {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.comment-item.designer-view:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(200, 180, 160, 0.15);
+}
+
+/* ============================================
    12. PAGE: ADMIN PANEL
    ============================================ */
 

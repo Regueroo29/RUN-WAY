@@ -13,8 +13,43 @@ function Designer() {
   const [designs, setDesigns] = useState([]);
   const [editingDesign, setEditingDesign] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [viewingComments, setViewingComments] = useState(null);
+  const [designComments, setDesignComments] = useState([]);
+  const [loadingDesignComments, setLoadingDesignComments] = useState(false);
+  const viewingCommentsRef = useRef(null);
   const fileInputRef = useRef(null);
-  
+
+  const handleViewComments = async (design, e) => {
+    if (e) e.stopPropagation();
+    setViewingComments(design);
+    setLoadingDesignComments(true);
+    try {
+      const res = await API.get(`/designs/${design.design_id}/comments`);
+      setDesignComments(res.data);
+    } catch (err) {
+      console.error("Error fetching design comments:", err);
+    } finally {
+      setLoadingDesignComments(false);
+    }
+  };
+
+  const closeCommentsModal = () => {
+    setViewingComments(null);
+    setDesignComments([]);
+  };
+
+  const handleCommentAdded = ({ design_id, comment }) => {
+    // Use ref so we always see the current modal state
+    if (viewingCommentsRef.current?.design_id === design_id) {
+      setDesignComments(prev => [comment, ...prev]);
+    }
+    setDesigns(prev => prev.map(d => 
+      d.design_id === design_id 
+        ? { ...d, comment_count: (d.comment_count || 0) + 1 }
+        : d
+    ));
+  };
+
   const [uploadForm, setUploadForm] = useState({
     title: "",
     description: "",
@@ -56,6 +91,10 @@ function Designer() {
       fetchFreshUserData();
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    viewingCommentsRef.current = viewingComments;
+  }, [viewingComments]);
 
   const fetchFreshUserData = async () => {
     try {
@@ -127,6 +166,8 @@ function Designer() {
       navigate("/login");
     });
 
+    socket.on('comment_added', handleCommentAdded);
+
     return () => {
       socket.off("design_uploaded");
       socket.off("design_liked");
@@ -134,6 +175,7 @@ function Designer() {
       socket.off("design_deleted");
       socket.off("design_updated");
       socket.off("account_suspended");
+      socket.off('comment_added', handleCommentAdded);
     };
   }, [socket, user, navigate]);
 
@@ -187,7 +229,7 @@ function Designer() {
       alert("Please add a title and select an image");
       return;
     }
-    
+
     setLoading(true);
     try {
       const formData = new FormData();
@@ -196,11 +238,11 @@ function Designer() {
       formData.append("title", uploadForm.title);
       formData.append("description", uploadForm.description);
       formData.append("season", uploadForm.season);
-      
+
       await API.post("/designs", formData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
-      
+
       setActiveTab("gallery");
       resetUploadForm();
     } catch (err) {
@@ -225,7 +267,7 @@ function Designer() {
 
   const handleUpdate = async () => {
     if (!editingDesign) return;
-    
+
     setLoading(true);
     try {
       if (editForm.image instanceof File) {
@@ -235,7 +277,7 @@ function Designer() {
         formData.append("title", editForm.title);
         formData.append("description", editForm.description);
         formData.append("season", editForm.season);
-        
+
         await API.post(`/designs/${editingDesign.design_id}/update-with-image`, formData, {
           headers: { "Content-Type": "multipart/form-data" }
         });
@@ -247,7 +289,7 @@ function Designer() {
           season: editForm.season
         });
       }
-      
+
       alert("Design updated!");
       setEditingDesign(null);
       setActiveTab("gallery");
@@ -263,7 +305,7 @@ function Designer() {
   const handleDelete = async (designId) => {
     if (!user) return;
     if (!window.confirm("Delete this design permanently?")) return;
-    
+
     try {
       // Pass designer_id in the request body, not query params
       await API.delete(`/designs/${designId}`, {
@@ -299,9 +341,9 @@ function Designer() {
         });
         profileForm.avatar_url = res.data.avatar_url;
       }
-      
+
       await API.put(`/users/${user.user_id}/profile`, profileForm);
-      
+
       const updatedUser = { ...user, ...profileForm };
       setUser(updatedUser);
       localStorage.setItem("user", JSON.stringify(updatedUser));
@@ -396,7 +438,13 @@ function Designer() {
                     <div className="item-stats">
                       <span>❤️ {item.like_count || 0}</span>
                       <span>⭐ {item.avg_rating && !isNaN(item.avg_rating) ? Number(item.avg_rating).toFixed(1) : '0.0'} ({item.rating_count || 0})</span>
-                      <span>💬 {item.comment_count || 0}</span>
+                        <span 
+                          className="comment-count-clickable"
+                          onClick={(e) => handleViewComments(item, e)}
+                          title="View comments"
+                        >
+                          💬 {item.comment_count || 0}
+                        </span>
                     </div>
                   </div>
                 </div>
@@ -416,7 +464,7 @@ function Designer() {
                 <h2>🆕 Upload New Design</h2>
                 <p className="upload-subtitle">Share your latest fashion creation with the world</p>
               </div>
-              
+
               <div className="upload-content">
                 <div className="upload-preview upload-side">
                   <div className="preview-frame upload-preview-box" onClick={() => fileInputRef.current?.click()}>
@@ -433,7 +481,7 @@ function Designer() {
                     style={{ display: 'none' }}
                   />
                 </div>
-                
+
                 <div className="upload-form upload-side">
                   <div className="form-field">
                     <label>Title *</label>
@@ -444,7 +492,7 @@ function Designer() {
                       onChange={(e) => setUploadForm({...uploadForm, title: e.target.value})}
                     />
                   </div>
-                  
+
                   <div className="form-field">
                     <label>Description</label>
                     <textarea 
@@ -454,7 +502,7 @@ function Designer() {
                       rows="4"
                     />
                   </div>
-                  
+
                   <div className="form-field">
                     <label>Season</label>
                     <select 
@@ -467,7 +515,7 @@ function Designer() {
                       <option>Winter</option>
                     </select>
                   </div>
-                  
+
                   <div className="upload-actions">
                     <button 
                       className="btn-secondary" 
@@ -505,7 +553,7 @@ function Designer() {
                   </div>
                 )}
               </div>
-              
+
               <div className="edit-content">
                 <div className="edit-image-section">
                   <div className="current-image-label">Current Image</div>
@@ -524,7 +572,7 @@ function Designer() {
                     style={{ display: 'none' }}
                   />
                 </div>
-                
+
                 <div className="edit-form-section">
                   <div className="form-field">
                     <label>Title *</label>
@@ -534,7 +582,7 @@ function Designer() {
                       onChange={(e) => setEditForm({...editForm, title: e.target.value})}
                     />
                   </div>
-                  
+
                   <div className="form-field">
                     <label>Description</label>
                     <textarea 
@@ -543,7 +591,7 @@ function Designer() {
                       rows="4"
                     />
                   </div>
-                  
+
                   <div className="form-field">
                     <label>Season</label>
                     <select 
@@ -556,7 +604,7 @@ function Designer() {
                       <option>Winter</option>
                     </select>
                   </div>
-                  
+
                   <div className="edit-actions">
                     <button 
                       className="btn-secondary" 
@@ -632,17 +680,17 @@ function Designer() {
                   accept="image/*"
                   style={{ display: 'none' }}
                 />
-                
+
                 <h3 className="designer-name">{user.username}</h3>
                 <p className="designer-role">Fashion Designer</p>
-                
+
                 <div className="profile-stats-mini">
                   <div><span>{designs.length}</span><small>Designs</small></div>
                   <div><span>{stats.followerCount}</span><small>Followers</small></div>
                 </div>
 
               </div>
-              
+
               <div className="profile-details">
                 {!editProfileMode ? (
                   <>
@@ -790,6 +838,60 @@ function Designer() {
           </div>
         )}
       </main>
+
+      {/* Comments View Modal */}
+        {viewingComments && (
+          <div className="comments-view-modal" onClick={closeCommentsModal}>
+            <div className="comments-view-content" onClick={(e) => e.stopPropagation()}>
+              <button className="modal-close" onClick={closeCommentsModal}>×</button>
+
+              <div className="comments-view-header">
+                <h3>Comments on "{viewingComments.title}"</h3>
+                <p className="comments-view-subtitle">
+                  {viewingComments.season} • {designComments.length} comment{designComments.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+
+              <div className="comments-view-image">
+                <img src={viewingComments.image_url} alt={viewingComments.title} />
+              </div>
+
+              <div className="comments-view-list">
+                {loadingDesignComments ? (
+                  <div className="empty-comments">Loading comments...</div>
+                ) : designComments.length === 0 ? (
+                  <div className="empty-comments">No comments yet on this design.</div>
+                ) : (
+                  designComments.map(comment => (
+                    <div key={comment.comment_id} className="comment-item designer-view">
+                      {comment.avatar_url ? (
+                        <img src={comment.avatar_url} alt={comment.username} className="comment-avatar" />
+                      ) : (
+                        <div className="comment-avatar-placeholder">
+                          {comment.username?.[0]?.toUpperCase()}
+                        </div>
+                      )}
+                      <div className="comment-content">
+                        <div className="comment-header">
+                          <span className="comment-author">
+                            {comment.username}
+                            <span className={`comment-role-badge ${comment.role}`}>
+                              {comment.role}
+                            </span>
+                          </span>
+                          <span className="comment-time">
+                            {new Date(comment.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <p className="comment-text">{comment.content}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
       <div className="studio-decoration left"><img src="/login.jpg" alt="Decoration" /></div>
       <div className="studio-decoration right"><img src="/register.jpg" alt="Decoration" /></div>
