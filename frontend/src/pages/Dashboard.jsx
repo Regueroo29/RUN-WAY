@@ -1,7 +1,6 @@
 // Dashboard JSX
 
-import { useEffect, useState, useMemo } from "react";
-import { useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import API from "../services/api";
 import { useSocket } from '../context/SocketContext';
@@ -15,12 +14,11 @@ function Dashboard() {
   const [followingDesigners, setFollowingDesigners] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDesign, setSelectedDesign] = useState(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const navigate = useNavigate();
-  const socket = useSocket();
   const [comments, setComments] = useState({});
   const [commentInputs, setCommentInputs] = useState({});
   const [loadingComments, setLoadingComments] = useState({});
+  const navigate = useNavigate();
+  const socket = useSocket();
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
@@ -38,7 +36,6 @@ function Dashboard() {
     if (!socket) return;
 
     socket.on('design_uploaded', (newDesign) => {
-      // If backend sends incomplete data, refetch instead
       if (!newDesign.designer_name) {
         if (user?.user_id) fetchData(user.user_id);
         return;
@@ -79,14 +76,10 @@ function Dashboard() {
       socket.off('design_uploaded');
       socket.off('design_deleted');
       socket.off('design_updated');
+      socket.off('comment_added');
+      socket.off('comment_deleted');
     };
   }, [socket, user, selectedDesign]);
-
-  useEffect(() => {
-    if (selectedDesign?.design_id) {
-      fetchComments(selectedDesign.design_id);
-    }
-  }, [selectedDesign, fetchComments]);
 
   const fetchData = async (userId) => {
     try {
@@ -118,43 +111,6 @@ function Dashboard() {
     }
   };
 
-  const getFilteredDesigns = () => {
-    let filtered = designs;
-
-    // 🔍 SEARCH: partial match on title, designer name, or brand
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      filtered = filtered.filter(d => 
-        (d.title && d.title.toLowerCase().includes(q)) ||
-        (d.designer_name && d.designer_name.toLowerCase().includes(q)) ||
-        (d.brand_name && d.brand_name.toLowerCase().includes(q))
-      );
-    }
-
-    if (activeTab === "trending") {
-      return [...filtered].sort((a, b) => {
-        const scoreA = (a.like_count || 0) + (a.avg_rating || 0) * 10;
-        const scoreB = (b.like_count || 0) + (b.avg_rating || 0) * 10;
-        return scoreB - scoreA;
-      });
-    }
-
-    if (activeTab === "foryou") {
-      const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-
-      return filtered.filter(d => {
-        const designDate = new Date(d.created_at);
-        const isRecent = designDate > oneWeekAgo;
-        const isFromFollowed = followingDesigners.includes(d.designer_id);
-        return isRecent || isFromFollowed;
-      }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    }
-
-    return filtered;
-  };
-
-  // Fetch comments for a design
   const fetchComments = useCallback(async (designId) => {
     if (!designId) return;
     setLoadingComments(prev => ({ ...prev, [designId]: true }));
@@ -168,77 +124,45 @@ function Dashboard() {
     }
   }, []);
 
-  // Handle comment input change
-  const handleCommentInputChange = (designId, value) => {
-    setCommentInputs(prev => ({ ...prev, [designId]: value }));
-  };
+  useEffect(() => {
+    if (selectedDesign?.design_id) {
+      fetchComments(selectedDesign.design_id);
+    }
+  }, [selectedDesign, fetchComments]);
 
-  // Submit comment
-  const handleSubmitComment = async (designId, e) => {
-    if (e) e.stopPropagation();
-    if (!user || !designId) return;
-    
-    const content = commentInputs[designId]?.trim();
-    if (!content) return;
-
-    try {
-      await API.post("/comments", {
-        user_id: user.user_id,
-        design_id: designId,
-        content: content
+  const getFilteredDesigns = () => {
+    if (activeTab === "trending") {
+      return [...designs].sort((a, b) => {
+        const scoreA = (a.like_count || 0) + (a.avg_rating || 0) * 10;
+        const scoreB = (b.like_count || 0) + (b.avg_rating || 0) * 10;
+        return scoreB - scoreA;
       });
+    }
+    
+    if (activeTab === "foryou") {
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
       
-      // Clear input
-      setCommentInputs(prev => ({ ...prev, [designId]: '' }));
-      // Refresh comments
-      fetchComments(designId);
-    } catch (err) {
-      console.error("Comment error:", err);
-      alert(err.response?.data?.error || "Error posting comment");
+      return designs.filter(d => {
+        const designDate = new Date(d.created_at);
+        const isRecent = designDate > oneWeekAgo;
+        const isFromFollowed = followingDesigners.includes(d.designer_id);
+        return isRecent || isFromFollowed;
+      }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     }
-  };
-
-  // Delete comment
-  const handleDeleteComment = async (commentId, designId, e) => {
-    if (e) e.stopPropagation();
-    if (!user) return;
     
-    if (!window.confirm("Delete this comment?")) return;
-
-    try {
-      await API.delete(`/comments/${commentId}`, {
-        data: { user_id: user.user_id }
-      });
-      setComments(prev => ({
-        ...prev,
-        [designId]: (prev[designId] || []).filter(c => c.comment_id !== commentId)
-      }));
-    } catch (err) {
-      console.error("Delete comment error:", err);
-      alert(err.response?.data?.error || "Error deleting comment");
-    }
+    return designs;
   };
 
   const groupedActivity = useMemo(() => {
     const likedInOrder = likedDesigns
       .map(id => designs.find(d => d.design_id === id))
       .filter(Boolean);
-
-    // 🔍 Filter activity by search too
-    let filteredLiked = likedInOrder;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      filteredLiked = likedInOrder.filter(d => 
-        (d.title && d.title.toLowerCase().includes(q)) ||
-        (d.designer_name && d.designer_name.toLowerCase().includes(q)) ||
-        (d.brand_name && d.brand_name.toLowerCase().includes(q))
-      );
-    }
-
+    
     const groups = [];
     const seenDesigners = new Set();
-
-    filteredLiked.forEach(design => {
+    
+    likedInOrder.forEach(design => {
       if (!seenDesigners.has(design.designer_id)) {
         seenDesigners.add(design.designer_id);
         groups.push({
@@ -248,13 +172,13 @@ function Dashboard() {
             brand_name: design.brand_name,
             designer_avatar: design.designer_avatar
           },
-          designs: filteredLiked.filter(d => d.designer_id === design.designer_id)
+          designs: likedInOrder.filter(d => d.designer_id === design.designer_id)
         });
       }
     });
-
+    
     return groups;
-  }, [likedDesigns, designs, searchQuery]);
+  }, [likedDesigns, designs]);
 
   const handleLike = async (designId, e) => {
     if (e) e.stopPropagation();
@@ -358,6 +282,52 @@ function Dashboard() {
     }
   };
 
+  const handleCommentInputChange = (designId, value) => {
+    setCommentInputs(prev => ({ ...prev, [designId]: value }));
+  };
+
+  const handleSubmitComment = async (designId, e) => {
+    if (e) e.stopPropagation();
+    if (!user || !designId) return;
+    
+    const content = commentInputs[designId]?.trim();
+    if (!content) return;
+
+    try {
+      await API.post("/comments", {
+        user_id: user.user_id,
+        design_id: designId,
+        content: content
+      });
+      
+      setCommentInputs(prev => ({ ...prev, [designId]: '' }));
+      fetchComments(designId);
+    } catch (err) {
+      console.error("Comment error:", err);
+      alert(err.response?.data?.error || "Error posting comment");
+    }
+  };
+
+  const handleDeleteComment = async (commentId, designId, e) => {
+    if (e) e.stopPropagation();
+    if (!user) return;
+    
+    if (!window.confirm("Delete this comment?")) return;
+
+    try {
+      await API.delete(`/comments/${commentId}`, {
+        data: { user_id: user.user_id }
+      });
+      setComments(prev => ({
+        ...prev,
+        [designId]: (prev[designId] || []).filter(c => c.comment_id !== commentId)
+      }));
+    } catch (err) {
+      console.error("Delete comment error:", err);
+      alert(err.response?.data?.error || "Error deleting comment");
+    }
+  };
+
   const navigateToDesigner = (designerId, e) => {
     if (e) e.stopPropagation();
     navigate(`/designer/${designerId}`);
@@ -428,15 +398,7 @@ function Dashboard() {
         
         <div className="header-right">
           <div className="search-bar">
-            <input 
-              type="text" 
-              placeholder="Search designers or designs..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            {searchQuery && (
-              <button className="search-clear" onClick={() => setSearchQuery("")}>×</button>
-            )}
+            <input type="text" placeholder="Search designers or designs..." />
           </div>
           <Link to="/profile" className="header-profile">
             {user.avatar_url ? (
@@ -453,11 +415,7 @@ function Dashboard() {
           <div className="activity-section">
             {groupedActivity.length === 0 ? (
               <div className="empty-state">
-                <p>
-                  {searchQuery 
-                    ? `No liked designs match "${searchQuery}"` 
-                    : "No activity yet. Start exploring and liking designs!"}
-                </p>
+                <p>No activity yet. Start exploring and liking designs!</p>
               </div>
             ) : (
               groupedActivity.map(group => (
@@ -718,7 +676,6 @@ function Dashboard() {
                       </span>
                     </h4>
                     
-                    {/* Comment Input */}
                     <div className="comment-input-area">
                       {user?.avatar_url ? (
                         <img src={user.avatar_url} alt={user.username} className="comment-avatar" />
@@ -746,7 +703,6 @@ function Dashboard() {
                       </div>
                     </div>
 
-                    {/* Comments List */}
                     <div className="comments-list">
                       {loadingComments[selectedDesign.design_id] ? (
                         <div className="empty-comments">Loading comments...</div>

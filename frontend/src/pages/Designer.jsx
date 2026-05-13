@@ -1,4 +1,4 @@
-// Designer JSX
+// Dashboard JSX
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
