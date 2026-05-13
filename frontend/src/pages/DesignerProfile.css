@@ -1,3 +1,5 @@
+/* DESIGNER PROFILE CSS - FIXED SCROLLING */
+
 .designer-public-profile {
   min-height: 100vh;
   background: #1a1a1a;
@@ -24,6 +26,7 @@
   right: 0;
   height: 50vh;
   z-index: 0;
+  pointer-events: none; /* Let clicks pass through to content */
 }
 
 .designer-hero-bg img {
@@ -62,7 +65,7 @@
   transform: translateX(-5px);
 }
 
-/* Floating Navigation */
+/* Floating Navigation - FIXED: Better positioning */
 .floating-nav {
   position: fixed;
   right: 30px;
@@ -83,6 +86,7 @@
   cursor: pointer;
   position: relative;
   transition: all 0.3s;
+  padding: 0;
 }
 
 .nav-dot:hover {
@@ -103,6 +107,7 @@
   opacity: 0;
   visibility: hidden;
   transition: all 0.3s;
+  pointer-events: none;
 }
 
 .nav-dot:hover .nav-tooltip {
@@ -127,6 +132,9 @@
   transition: all 0.3s;
   backdrop-filter: blur(10px);
   animation: fadeInUp 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .scroll-to-top-btn:hover {
@@ -145,17 +153,26 @@
   }
 }
 
+/* ============================================
+   MAIN CONTENT - FIXED: Unified scroll
+   ============================================ */
+
 .designer-profile-content {
   position: relative;
   z-index: 1;
   max-width: 1400px;
   margin: 0 auto;
-  padding: 150px 40px 40px;
+  padding: 150px 40px 80px; /* Added bottom padding for footer space */
   display: grid;
   grid-template-columns: 350px 1fr;
   gap: 60px;
   align-items: start;
+  /* REMOVED: height, overflow properties - let the page scroll naturally */
 }
+
+/* ============================================
+   LEFT SIDEBAR - FIXED: Sticky but no independent scroll
+   ============================================ */
 
 .designer-info-panel {
   background: rgba(255, 255, 255, 0.03);
@@ -164,24 +181,32 @@
   padding: 40px;
   text-align: center;
   position: sticky;
-  top: 100px;
-  max-height: calc(100vh - 120px);
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(200, 180, 160, 0.3) transparent;
+  top: 100px; /* Sticks below the hero area */
+  /* REMOVED: max-height, overflow-y - sidebar scrolls with page now */
+  align-self: start; /* Prevents grid from stretching it */
 }
 
-.designer-info-panel::-webkit-scrollbar {
-  width: 6px;
-}
-
-.designer-info-panel::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.designer-info-panel::-webkit-scrollbar-thumb {
-  background: rgba(200, 180, 160, 0.3);
-  border-radius: 3px;
+/* Only add scroll if viewport is very short, but prefer page scroll */
+@media (max-height: 800px) {
+  .designer-info-panel {
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(200, 180, 160, 0.3) transparent;
+  }
+  
+  .designer-info-panel::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .designer-info-panel::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .designer-info-panel::-webkit-scrollbar-thumb {
+    background: rgba(200, 180, 160, 0.3);
+    border-radius: 3px;
+  }
 }
 
 .designer-avatar-large {
@@ -192,6 +217,7 @@
   margin: 0 auto 20px;
   border: 3px solid rgba(200, 180, 160, 0.5);
   box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  flex-shrink: 0; /* Prevent shrinking */
 }
 
 .designer-avatar-large img {
@@ -216,6 +242,7 @@
   font-weight: 300;
   margin: 0 0 5px;
   letter-spacing: 1px;
+  word-break: break-word; /* Prevent long names from breaking layout */
 }
 
 .designer-handle {
@@ -231,6 +258,10 @@
   font-style: italic;
 }
 
+/* ============================================
+   STATS ROW - FIXED: Better spacing
+   ============================================ */
+
 .designer-stats-row {
   display: flex;
   justify-content: center;
@@ -245,6 +276,7 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
+  align-items: center;
 }
 
 .stat-box.clickable {
@@ -289,6 +321,7 @@
   font-size: 13px;
   letter-spacing: 1px;
   transition: all 0.3s;
+  font-family: inherit;
 }
 
 .quick-scroll-btn:hover {
@@ -318,6 +351,7 @@
   letter-spacing: 1px;
   transition: all 0.3s;
   margin-bottom: 20px;
+  font-family: inherit;
 }
 
 .follow-designer-btn:hover {
@@ -330,6 +364,10 @@
   border-color: rgba(100, 200, 100, 0.4);
   color: rgba(100, 255, 100, 1);
 }
+
+/* ============================================
+   BIO & LINKS SECTIONS - FIXED: Better containment
+   ============================================ */
 
 .designer-bio-section,
 .designer-links-section {
@@ -350,6 +388,7 @@
   color: rgba(255,255,255,0.7);
   line-height: 1.6;
   font-size: 14px;
+  word-wrap: break-word; /* Prevent long text overflow */
 }
 
 .no-bio {
@@ -366,6 +405,7 @@
   text-decoration: none;
   margin-bottom: 8px;
   transition: all 0.3s;
+  word-break: break-all; /* Break long URLs */
 }
 
 .designer-link:hover {
@@ -378,6 +418,15 @@
   color: rgba(255,255,255,0.4);
   font-size: 13px;
   font-style: italic;
+}
+
+/* ============================================
+   RIGHT PANEL - FIXED: Natural flow, no forced height
+   ============================================ */
+
+.designer-works-panel {
+  /* REMOVED: min-height, overflow - let content determine height */
+  padding-bottom: 40px; /* Space before end marker */
 }
 
 .works-title {
@@ -453,6 +502,7 @@
   font-weight: 500;
   transform: translateY(10px);
   transition: all 0.3s;
+  font-family: inherit;
 }
 
 .work-card:hover .view-details-btn {
@@ -472,6 +522,7 @@
   margin: 0 0 5px;
   font-size: 16px;
   font-weight: 400;
+  word-wrap: break-word;
 }
 
 .work-info p {
@@ -486,6 +537,10 @@
   font-size: 13px;
   color: rgba(200, 180, 160, 0.8);
 }
+
+/* ============================================
+   END OF COLLECTIONS - FIXED: Proper centering
+   ============================================ */
 
 .no-designs-container {
   text-align: center;
@@ -523,6 +578,7 @@
   cursor: pointer;
   font-size: 13px;
   transition: all 0.3s;
+  font-family: inherit;
 }
 
 .back-to-top-link:hover {
@@ -531,7 +587,10 @@
   color: rgba(200, 180, 160, 1);
 }
 
-/* Loading & Error States */
+/* ============================================
+   LOADING & ERROR STATES
+   ============================================ */
+
 .designer-profile-loading,
 .designer-profile-error {
   min-height: 100vh;
@@ -568,22 +627,29 @@
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.3s;
+  font-family: inherit;
 }
 
 .designer-profile-error button:hover {
   background: rgba(200, 180, 160, 0.5);
 }
 
-/* Responsive */
+/* ============================================
+   RESPONSIVE - FIXED: Better mobile handling
+   ============================================ */
+
 @media (max-width: 968px) {
   .designer-profile-content {
     grid-template-columns: 1fr;
-    padding: 120px 20px 20px;
+    padding: 120px 20px 40px;
+    gap: 30px;
   }
   
   .designer-info-panel {
-    position: static;
+    position: static; /* Remove sticky on mobile */
     max-height: none;
+    overflow-y: visible;
+    order: -1; /* Move sidebar above content on mobile */
   }
 
   .floating-nav {
@@ -595,5 +661,41 @@
     left: 15px;
     padding: 8px 15px;
     font-size: 11px;
+  }
+  
+  .works-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+  }
+  
+  .work-image {
+    height: 250px;
+  }
+}
+
+@media (max-width: 480px) {
+  .designer-profile-content {
+    padding: 100px 15px 30px;
+  }
+  
+  .designer-info-panel {
+    padding: 25px 20px;
+  }
+  
+  .designer-avatar-large {
+    width: 120px;
+    height: 120px;
+  }
+  
+  .avatar-initial {
+    font-size: 48px;
+  }
+  
+  .designer-name {
+    font-size: 22px;
+  }
+  
+  .works-grid {
+    grid-template-columns: 1fr;
   }
 }
