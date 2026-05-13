@@ -97,7 +97,7 @@ function Login() {
     <div className="auth-split-page">
       <div className="split-image-side">
         <div className="split-image-circle">
-          <img src="/classic.jpg" alt="Fashion" />
+          <img src="/login.png" alt="Fashion" />
         </div>
         {/* ✅ VERTICAL TEXT AROUND CIRCLE */}
         <div className="vertical-text top">L</div> 
