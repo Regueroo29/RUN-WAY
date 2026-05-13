@@ -1,3 +1,5 @@
+// ======== Index.js
+
 require('dotenv').config();
 
 const http = require('http');
@@ -394,6 +396,128 @@ app.get("/api/designs", (req, res) => {
   });
 });
 
+// ================= COMMENTS =================
+
+// Get comments for a design
+app.get("/api/designs/:id/comments", (req, res) => {
+  const designId = req.params.id;
+  
+  db.query(
+    `SELECT c.*, u.username, u.avatar_url, u.role
+     FROM comments c
+     JOIN users u ON c.user_id = u.user_id
+     WHERE c.design_id = ?
+     ORDER BY c.created_at DESC`,
+    [designId],
+    (err, results) => {
+      if (err) return res.status(500).json({ error: err.message });
+      
+      results.forEach(comment => {
+        comment.avatar_url = getImageUrl(comment.avatar_url);
+      });
+      
+      res.json(results);
+    }
+  );
+});
+
+// Add a comment
+app.post("/api/comments", (req, res) => {
+  const { user_id, design_id, content } = req.body;
+  
+  if (!user_id || !design_id || !content?.trim()) {
+    return res.status(400).json({ error: "user_id, design_id, and content are required" });
+  }
+
+  db.query(
+    "INSERT INTO comments (user_id, design_id, content) VALUES (?, ?, ?)",
+    [user_id, design_id, content.trim()],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      
+      logActivity(user_id, 'comment', design_id, `Commented on design #${design_id}`);
+      
+      // Fetch the complete comment with user info to emit
+      db.query(
+        `SELECT c.*, u.username, u.avatar_url, u.role
+         FROM comments c
+         JOIN users u ON c.user_id = u.user_id
+         WHERE c.comment_id = ?`,
+        [result.insertId],
+        (err, commentResult) => {
+          if (!err && commentResult.length > 0) {
+            const commentData = commentResult[0];
+            commentData.avatar_url = getImageUrl(commentData.avatar_url);
+            
+            if (global.io) {
+              global.io.emit('comment_added', {
+                design_id: parseInt(design_id),
+                comment: commentData
+              });
+            }
+          }
+        }
+      );
+      
+      res.json({ 
+        message: "Comment added successfully",
+        comment_id: result.insertId 
+      });
+    }
+  );
+});
+
+// Delete a comment (only owner or admin)
+app.delete("/api/comments/:id", async (req, res) => {
+  const commentId = req.params.id;
+  const { user_id } = req.body;
+
+  try {
+    if (!user_id) {
+      return res.status(400).json({ error: "user_id required" });
+    }
+
+    const [commentRows] = await db.promise().query(
+      "SELECT * FROM comments WHERE comment_id = ?",
+      [commentId]
+    );
+
+    if (!commentRows || commentRows.length === 0) {
+      return res.status(404).json({ error: "Comment not found" });
+    }
+
+    const comment = commentRows[0];
+
+    const [userRows] = await db.promise().query(
+      "SELECT role FROM users WHERE user_id = ?",
+      [user_id]
+    );
+    
+    const userRole = userRows && userRows.length > 0 ? userRows[0].role : null;
+    const isAdmin = userRole === 'admin';
+    const isOwner = comment.user_id == user_id;
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ error: "Unauthorized" });
+    }
+
+    await db.promise().query("DELETE FROM comments WHERE comment_id = ?", [commentId]);
+
+    if (global.io) {
+      global.io.emit('comment_deleted', { 
+        comment_id: parseInt(commentId),
+        design_id: comment.design_id
+      });
+    }
+
+    res.json({ success: true, message: "Comment deleted" });
+
+  } catch (err) {
+    console.error("Delete comment error:", err);
+    res.status(500).json({ error: err.message || "Unknown server error" });
+  }
+});
+
 app.get("/api/designs/designer/:designerId", (req, res) => {
   const designerId = req.params.designerId;
   const viewerId = req.query.viewerId;
@@ -403,6 +527,7 @@ app.get("/api/designs/designer/:designerId", (req, res) => {
      (SELECT AVG(rating) FROM ratings WHERE design_id = d.design_id) as avg_rating,
      (SELECT COUNT(*) FROM ratings WHERE design_id = d.design_id) as rating_count,
      (SELECT COUNT(*) FROM likes WHERE design_id = d.design_id) as like_count
+     (SELECT COUNT(*) FROM comments WHERE design_id = d.design_id) as comment_count
      FROM designs d 
      WHERE d.designer_id = ?`;
   

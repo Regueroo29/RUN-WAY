@@ -1,3 +1,5 @@
+// Designer JSX
+
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useSocket } from '../context/SocketContext';
@@ -394,6 +396,7 @@ function Designer() {
                     <div className="item-stats">
                       <span>❤️ {item.like_count || 0}</span>
                       <span>⭐ {item.avg_rating && !isNaN(item.avg_rating) ? Number(item.avg_rating).toFixed(1) : '0.0'} ({item.rating_count || 0})</span>
+                      <span>💬 {item.comment_count || 0}</span>
                     </div>
                   </div>
                 </div>

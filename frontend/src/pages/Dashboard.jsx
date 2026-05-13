@@ -1,7 +1,10 @@
+// Dashboard JSX
+
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import API from "../services/api";
 import { useSocket } from '../context/SocketContext';
+import { useCallback } from "react";
 import "./Dashboard.css";
 
 function Dashboard() {
@@ -14,6 +17,9 @@ function Dashboard() {
   const [selectedDesign, setSelectedDesign] = useState(null);
   const navigate = useNavigate();
   const socket = useSocket();
+  const [comments, setComments] = useState({});
+  const [commentInputs, setCommentInputs] = useState({});
+  const [loadingComments, setLoadingComments] = useState({});
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
@@ -54,12 +60,32 @@ function Dashboard() {
       ));
     });
 
+    socket.on('comment_added', ({ design_id, comment }) => {
+      setComments(prev => ({
+        ...prev,
+        [design_id]: [comment, ...(prev[design_id] || [])]
+      }));
+    });
+
+    socket.on('comment_deleted', ({ comment_id, design_id }) => {
+      setComments(prev => ({
+        ...prev,
+        [design_id]: (prev[design_id] || []).filter(c => c.comment_id !== comment_id)
+      }));
+    });
+
     return () => {
       socket.off('design_uploaded');
       socket.off('design_deleted');
       socket.off('design_updated');
     };
   }, [socket, user, selectedDesign]);
+
+  useEffect(() => {
+    if (selectedDesign?.design_id) {
+      fetchComments(selectedDesign.design_id);
+    }
+  }, [selectedDesign, fetchComments]);
 
   const fetchData = async (userId) => {
     try {
@@ -113,6 +139,71 @@ function Dashboard() {
     }
     
     return designs;
+  };
+
+  // Fetch comments for a design
+  const fetchComments = useCallback(async (designId) => {
+    if (!designId) return;
+    setLoadingComments(prev => ({ ...prev, [designId]: true }));
+    try {
+      const res = await API.get(`/designs/${designId}/comments`);
+      setComments(prev => ({ ...prev, [designId]: res.data }));
+    } catch (err) {
+      console.error("Error fetching comments:", err);
+    } finally {
+      setLoadingComments(prev => ({ ...prev, [designId]: false }));
+    }
+  }, []);
+
+  // Handle comment input change
+  const handleCommentInputChange = (designId, value) => {
+    setCommentInputs(prev => ({ ...prev, [designId]: value }));
+  };
+
+  // Submit comment
+  const handleSubmitComment = async (designId, e) => {
+    if (e) e.stopPropagation();
+    if (!user || !designId) return;
+    
+    const content = commentInputs[designId]?.trim();
+    if (!content) return;
+
+    try {
+      await API.post("/comments", {
+        user_id: user.user_id,
+        design_id: designId,
+        content: content
+      });
+      
+      // Clear input
+      setCommentInputs(prev => ({ ...prev, [designId]: '' }));
+      // Refresh comments
+      fetchComments(designId);
+    } catch (err) {
+      console.error("Comment error:", err);
+      alert(err.response?.data?.error || "Error posting comment");
+    }
+  };
+
+  // Delete comment
+  const handleDeleteComment = async (commentId, designId, e) => {
+    if (e) e.stopPropagation();
+    if (!user) return;
+    
+    if (!window.confirm("Delete this comment?")) return;
+
+    try {
+      await API.delete(`/comments/${commentId}`, {
+        data: { user_id: user.user_id }
+      });
+      setComments(prev => ({
+        ...prev,
+        [designId]: (prev[designId] || []).filter(c => c.comment_id !== commentId)
+      }));
+    } catch (err) {
+      console.error("Delete comment error:", err);
+      alert(err.response?.data?.error || "Error deleting comment");
+    }
   };
 
   const groupedActivity = useMemo(() => {
@@ -384,6 +475,7 @@ function Dashboard() {
                           <div className="design-stats">
                             <span>❤️ {design.like_count || 0}</span>
                             <span>⭐ {design.rating_count || 0} ratings</span>
+                            <span>💬 {(comments[design.design_id] || []).length}</span>
                           </div>
                           {renderStars(design)}
                         </div>
@@ -451,6 +543,7 @@ function Dashboard() {
                     <div className="design-stats">
                       <span>❤️ {design.like_count || 0}</span>
                       <span>⭐ {design.rating_count || 0} ratings</span>
+                      <span>💬 {(comments[design.design_id] || []).length}</span>
                     </div>
                     {renderStars(design)}
                   </div>
@@ -548,6 +641,13 @@ function Dashboard() {
                         <span className="stat-label">ratings</span>
                       </div>
                     </div>
+                    <div className="stat-item-large">
+                      <span className="stat-icon">💬</span>
+                      <div>
+                        <span className="stat-count">{(comments[selectedDesign.design_id] || []).length}</span>
+                        <span className="stat-label">comments</span>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="rating-section">
@@ -572,6 +672,88 @@ function Dashboard() {
                   >
                     View Designer Profile →
                   </button>
+
+                  {/* COMMENTS SECTION */}
+                  <div className="comments-section">
+                    <h4>
+                      Comments 
+                      <span className="comment-count-badge">
+                        {(comments[selectedDesign.design_id] || []).length}
+                      </span>
+                    </h4>
+                    
+                    {/* Comment Input */}
+                    <div className="comment-input-area">
+                      {user?.avatar_url ? (
+                        <img src={user.avatar_url} alt={user.username} className="comment-avatar" />
+                      ) : (
+                        <div className="comment-avatar-placeholder">
+                          {user?.username?.[0]?.toUpperCase()}
+                        </div>
+                      )}
+                      <div className="comment-input-wrapper">
+                        <textarea
+                          className="comment-input"
+                          placeholder="Add a comment..."
+                          value={commentInputs[selectedDesign.design_id] || ''}
+                          onChange={(e) => handleCommentInputChange(selectedDesign.design_id, e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          rows="2"
+                        />
+                        <button 
+                          className="comment-submit-btn"
+                          onClick={(e) => handleSubmitComment(selectedDesign.design_id, e)}
+                          disabled={!commentInputs[selectedDesign.design_id]?.trim()}
+                        >
+                          Post
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Comments List */}
+                    <div className="comments-list">
+                      {loadingComments[selectedDesign.design_id] ? (
+                        <div className="empty-comments">Loading comments...</div>
+                      ) : (comments[selectedDesign.design_id] || []).length === 0 ? (
+                        <div className="empty-comments">No comments yet. Be the first to comment!</div>
+                      ) : (
+                        comments[selectedDesign.design_id].map(comment => (
+                          <div key={comment.comment_id} className="comment-item">
+                            {comment.avatar_url ? (
+                              <img src={comment.avatar_url} alt={comment.username} className="comment-avatar" />
+                            ) : (
+                              <div className="comment-avatar-placeholder">
+                                {comment.username?.[0]?.toUpperCase()}
+                              </div>
+                            )}
+                            <div className="comment-content">
+                              <div className="comment-header">
+                                <span className="comment-author">
+                                  {comment.username}
+                                  <span className={`comment-role-badge ${comment.role}`}>
+                                    {comment.role}
+                                  </span>
+                                </span>
+                                <span className="comment-time">
+                                  {new Date(comment.created_at).toLocaleDateString()}
+                                </span>
+                              </div>
+                              <p className="comment-text">{comment.content}</p>
+                              {(comment.user_id === user?.user_id || user?.role === 'admin') && (
+                                <button 
+                                  className="comment-delete-btn"
+                                  onClick={(e) => handleDeleteComment(comment.comment_id, selectedDesign.design_id, e)}
+                                  title="Delete comment"
+                                >
+                                  ×
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

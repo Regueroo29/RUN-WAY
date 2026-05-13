@@ -1,3 +1,5 @@
+/*Dashboard CSS*/
+
 /* Heart Animation */
 .heart-btn {
   position: absolute;
@@ -890,6 +892,281 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 25px;
+}
+
+/* ============================================
+   COMMENTS SYSTEM
+   ============================================ */
+
+.comments-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.comments-section h4 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: rgba(200, 180, 160, 0.8);
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.comment-count-badge {
+  background: rgba(200, 180, 160, 0.2);
+  color: rgba(200, 180, 160, 1);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+}
+
+/* Comment Input */
+.comment-input-area {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  align-items: flex-start;
+}
+
+.comment-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(200, 180, 160, 0.3);
+  flex-shrink: 0;
+}
+
+.comment-avatar-placeholder {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #a47148 0%, #8b5a3c 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 300;
+  color: white;
+  border: 2px solid rgba(200, 180, 160, 0.3);
+  flex-shrink: 0;
+}
+
+.comment-input-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.comment-input {
+  width: 100%;
+  padding: 12px 15px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: white;
+  font-family: inherit;
+  font-size: 13px;
+  resize: none;
+  min-height: 40px;
+  max-height: 120px;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.comment-input:focus {
+  border-color: rgba(200, 180, 160, 0.5);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.comment-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.comment-submit-btn {
+  align-self: flex-end;
+  padding: 8px 20px;
+  background: rgba(200, 180, 160, 0.2);
+  border: 1px solid rgba(200, 180, 160, 0.4);
+  color: rgba(200, 180, 160, 1);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  transition: all 0.3s ease;
+}
+
+.comment-submit-btn:hover:not(:disabled) {
+  background: rgba(200, 180, 160, 0.4);
+  transform: translateY(-1px);
+}
+
+.comment-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Comments List */
+.comments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding-right: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(160, 120, 90, 0.5) transparent;
+}
+
+.comments-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.comments-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.comments-list::-webkit-scrollbar-thumb {
+  background: rgba(160, 120, 90, 0.5);
+  border-radius: 3px;
+}
+
+/* Individual Comment */
+.comment-item {
+  display: flex;
+  gap: 12px;
+  animation: commentSlideIn 0.3s ease;
+}
+
+@keyframes commentSlideIn {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.comment-content {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  padding: 12px 15px;
+  position: relative;
+}
+
+.comment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.comment-author {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(200, 180, 160, 0.9);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.comment-role-badge {
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.comment-role-badge.designer {
+  background: rgba(200, 180, 160, 0.2);
+  color: rgba(200, 180, 160, 1);
+}
+
+.comment-role-badge.visitor {
+  background: rgba(100, 150, 200, 0.2);
+  color: rgba(100, 180, 255, 1);
+}
+
+.comment-role-badge.admin {
+  background: rgba(200, 50, 50, 0.2);
+  color: rgba(255, 100, 100, 1);
+}
+
+.comment-time {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.comment-text {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.5;
+  word-wrap: break-word;
+}
+
+.comment-delete-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  opacity: 0;
+}
+
+.comment-item:hover .comment-delete-btn {
+  opacity: 1;
+}
+
+.comment-delete-btn:hover {
+  color: rgba(200, 50, 50, 1);
+  background: rgba(200, 50, 50, 0.1);
+}
+
+/* Empty Comments State */
+.empty-comments {
+  text-align: center;
+  padding: 30px;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* Comment button on cards */
+.comment-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s;
+  padding: 4px;
+}
+
+.comment-btn:hover {
+  color: rgba(200, 180, 160, 1);
+}
+
+/* Modal comments section adjustments */
+.modal-details-section .comments-section {
+  margin-top: 15px;
+  padding-top: 15px;
+}
+
+.modal-details-section .comments-list {
+  max-height: 200px;
 }
 
 /* ============================================
