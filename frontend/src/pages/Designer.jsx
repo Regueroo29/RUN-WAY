@@ -105,6 +105,7 @@ function Designer() {
     });
 
     socket.on("design_deleted", (data) => {
+      if (!data || !data.design_id) return;
       setDesigns((prev) =>
         prev.filter((d) => d.design_id !== data.design_id)
       );
@@ -262,7 +263,10 @@ function Designer() {
     if (!window.confirm("Delete this design permanently?")) return;
     
     try {
-      await API.delete(`/designs/${designId}?designerId=${user.user_id}`);
+      // Pass designer_id in the request body, not query params
+      await API.delete(`/designs/${designId}`, {
+        data: { designer_id: user.user_id }  // axios requires 'data' for DELETE body
+      });
       setDesigns(prev => prev.filter(d => d.design_id !== designId));
     } catch (err) {
       console.error("Delete error:", err.response?.data || err.message);
