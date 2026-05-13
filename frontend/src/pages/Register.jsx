@@ -276,7 +276,7 @@ function Register() {
 
       <div className="split-image-side right">
         <div className="split-image-circle right">
-          <img src="/registerimg.jpg" alt="Fashion" />
+          <img src="/register.png" alt="Fashion" />
         </div>
       </div>
     </div>
