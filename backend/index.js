@@ -501,8 +501,6 @@ app.delete("/api/designs/:id", async (req, res) => {
   const designId = req.params.id;
   const designer_id = req.body.designer_id || req.query.designerId;
 
-  console.log("DELETE request:", { designId, designer_id }); // Debug log
-
   try {
     if (!designer_id) {
       return res.status(400).json({ error: "designer_id required" });
@@ -518,8 +516,6 @@ app.delete("/api/designs/:id", async (req, res) => {
       "SELECT * FROM designs WHERE design_id = ?",
       [designId]
     );
-
-    console.log("Design found:", designRows.length, "rows"); // Debug log
 
     if (!designRows || designRows.length === 0) {
       return res.status(404).json({ error: "Design not found" });
@@ -537,13 +533,11 @@ app.delete("/api/designs/:id", async (req, res) => {
     const isAdmin = userRole === 'admin';
     const isOwner = design.designer_id == designerIdNum;
 
-    console.log("Auth:", { isOwner, isAdmin, designDesignerId: design.designer_id, requestId: designerIdNum }); // Debug
-
     if (!isOwner && !isAdmin) {
       return res.status(403).json({ error: "Unauthorized" });
     }
 
-    // ✅ Delete related records FIRST (FK constraint fix)
+    // ✅ FIX: Delete related records FIRST (FK constraint)
     await db.promise().query("DELETE FROM likes WHERE design_id = ?", [designId]);
     await db.promise().query("DELETE FROM ratings WHERE design_id = ?", [designId]);
     
@@ -562,7 +556,7 @@ app.delete("/api/designs/:id", async (req, res) => {
     res.json({ success: true, message: "Design deleted" });
 
   } catch (err) {
-    console.error("Delete design FULL ERROR:", err);
+    console.error("Delete design error:", err);
     res.status(500).json({ error: err.message || "Unknown server error" });
   }
 });
