@@ -1,5 +1,3 @@
-// Dashboard JSX
-
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useSocket } from '../context/SocketContext';
@@ -18,6 +16,12 @@ function Designer() {
   const [loadingDesignComments, setLoadingDesignComments] = useState(false);
   const viewingCommentsRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // ADDED: Dropdown & password state
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ current: "", new: "", confirm: "" });
+  const menuRef = useRef(null);
 
   const handleViewComments = async (design, e) => {
     if (e) e.stopPropagation();
@@ -39,7 +43,6 @@ function Designer() {
   };
 
   const handleCommentAdded = ({ design_id, comment }) => {
-    // Use ref so we always see the current modal state
     if (viewingCommentsRef.current?.design_id === design_id) {
       setDesignComments(prev => [comment, ...prev]);
     }
@@ -96,6 +99,17 @@ function Designer() {
     viewingCommentsRef.current = viewingComments;
   }, [viewingComments]);
 
+  // ADDED: Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setShowUserMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const fetchFreshUserData = async () => {
     try {
       const res = await API.get(`/users/${user.user_id}`);
@@ -106,6 +120,29 @@ function Designer() {
       setAvatarPreview(freshData.avatar_url);
     } catch (err) {
       console.error("Error fetching fresh user data:", err);
+    }
+  };
+
+  // ADDED: Change password handler
+  const handleChangePassword = async () => {
+    if (passwordForm.new !== passwordForm.confirm) {
+      alert("New passwords do not match");
+      return;
+    }
+    if (passwordForm.new.length < 6) {
+      alert("Password must be at least 6 characters");
+      return;
+    }
+    try {
+      await API.put(`/users/${user.user_id}/password`, {
+        current_password: passwordForm.current,
+        new_password: passwordForm.new
+      });
+      alert("Password changed successfully!");
+      setShowChangePassword(false);
+      setPasswordForm({ current: "", new: "", confirm: "" });
+    } catch (err) {
+      alert(err.response?.data?.error || "Error changing password");
     }
   };
 
@@ -307,9 +344,8 @@ function Designer() {
     if (!window.confirm("Delete this design permanently?")) return;
 
     try {
-      // Pass designer_id in the request body, not query params
       await API.delete(`/designs/${designId}`, {
-        data: { designer_id: user.user_id }  // axios requires 'data' for DELETE body
+        data: { designer_id: user.user_id }
       });
       setDesigns(prev => prev.filter(d => d.design_id !== designId));
     } catch (err) {
@@ -362,6 +398,7 @@ function Designer() {
     navigate("/");
   };
 
+  // UPDATED: followingCount instead of followerCount
   const stats = useMemo(() => {
     const ratedDesigns = designs.filter((d) => {
       const r = Number(d.avg_rating);
@@ -386,7 +423,8 @@ function Designer() {
         ratedDesigns.length > 0
           ? (ratingSum / ratedDesigns.length).toFixed(1)
           : "0.0",
-      followerCount: Number(user?.follower_count) || 0,
+      followingCount: Number(user?.following_count) || 0,
+      designsCount: designs.length,
     };
   }, [designs, user]);
 
@@ -394,6 +432,7 @@ function Designer() {
 
   return (
     <div className="designer-studio">
+      {/* UPDATED: Header with avatar dropdown, logout removed */}
       <header className="studio-header">
         <div className="studio-logo">RUN-WAY</div>
         <nav className="studio-tabs">
@@ -410,9 +449,34 @@ function Designer() {
             PROFILE
           </button>
         </nav>
-        <button className="logout-tab" onClick={() => setShowLogoutConfirm(true)}>
-          LOGOUT
-        </button>
+        
+        <div className="studio-header-actions" ref={menuRef}>
+          <div className="studio-header-avatar" onClick={() => setShowUserMenu(!showUserMenu)}>
+            {user.avatar_url ? (
+              <img src={user.avatar_url} alt={user.username} className="avatar-small" />
+            ) : (
+              <div className="avatar-initial">{user.username?.[0]?.toUpperCase()}</div>
+            )}
+          </div>
+          
+          {showUserMenu && (
+            <div className="dropdown-menu studio-dropdown">
+              <Link to="/dashboard" onClick={() => setShowUserMenu(false)}>🏠 Discover</Link>
+              <button onClick={() => { setShowUserMenu(false); setActiveTab("profile"); }}>
+                👤 Profile
+              </button>
+              <button onClick={() => { setShowUserMenu(false); setActiveTab("profile"); setEditProfileMode(true); }}>
+                ✏️ Edit Profile
+              </button>
+              <button onClick={() => { setShowUserMenu(false); setShowChangePassword(true); }}>
+                🔒 Change Password
+              </button>
+              <button onClick={() => { setShowUserMenu(false); setShowLogoutConfirm(true); }} className="dropdown-logout">
+                🚪 Logout
+              </button>
+            </div>
+          )}
+        </div>
       </header>
 
       <main className="studio-content">
@@ -648,12 +712,13 @@ function Designer() {
                   <span className="stat-number">{stats.avgRating}</span>
                   <span className="stat-label">Avg Rating</span>
                 </div>
+                {/* UPDATED: Following instead of Followers */}
                 <div className="stat-item">
-                  <span className="stat-number">{stats.followerCount}</span>
-                  <span className="stat-label">Followers</span>
+                  <span className="stat-number">{stats.followingCount}</span>
+                  <span className="stat-label">Following</span>
                 </div>
                 <div className="stat-item">
-                  <span className="stat-number">{designs.length}</span>
+                  <span className="stat-number">{stats.designsCount}</span>
                   <span className="stat-label">Designs</span>
                 </div>
               </div>
@@ -684,9 +749,10 @@ function Designer() {
                 <h3 className="designer-name">{user.username}</h3>
                 <p className="designer-role">Fashion Designer</p>
 
+                {/* UPDATED: Following instead of Followers */}
                 <div className="profile-stats-mini">
-                  <div><span>{designs.length}</span><small>Designs</small></div>
-                  <div><span>{stats.followerCount}</span><small>Followers</small></div>
+                  <div><span>{stats.designsCount}</span><small>Designs</small></div>
+                  <div><span>{stats.followingCount}</span><small>Following</small></div>
                 </div>
 
               </div>
@@ -833,6 +899,44 @@ function Designer() {
               <div className="logout-actions">
                 <button className="btn-yes" onClick={handleLogout}>YES</button>
                 <button className="btn-no" onClick={() => setShowLogoutConfirm(false)}>NO</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ADDED: Change Password Modal */}
+        {showChangePassword && (
+          <div className="modal-overlay" onClick={() => setShowChangePassword(false)}>
+            <div className="modal-content password-modal" onClick={(e) => e.stopPropagation()}>
+              <button className="modal-close" onClick={() => setShowChangePassword(false)}>×</button>
+              <h2>Change Password</h2>
+              <div className="form-field">
+                <label>Current Password</label>
+                <input 
+                  type="password" 
+                  value={passwordForm.current}
+                  onChange={(e) => setPasswordForm({...passwordForm, current: e.target.value})}
+                />
+              </div>
+              <div className="form-field">
+                <label>New Password</label>
+                <input 
+                  type="password" 
+                  value={passwordForm.new}
+                  onChange={(e) => setPasswordForm({...passwordForm, new: e.target.value})}
+                />
+              </div>
+              <div className="form-field">
+                <label>Confirm New Password</label>
+                <input 
+                  type="password" 
+                  value={passwordForm.confirm}
+                  onChange={(e) => setPasswordForm({...passwordForm, confirm: e.target.value})}
+                />
+              </div>
+              <div className="edit-actions">
+                <button className="btn-secondary" onClick={() => setShowChangePassword(false)}>Cancel</button>
+                <button className="btn-primary" onClick={handleChangePassword}>Update Password</button>
               </div>
             </div>
           </div>

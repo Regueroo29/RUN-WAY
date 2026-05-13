@@ -1170,6 +1170,370 @@
 }
 
 /* ============================================
+   SEARCH BAR
+   ============================================ */
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 25px;
+  padding: 0 15px;
+  width: 300px;
+  transition: all 0.3s ease;
+}
+
+.search-bar:focus-within {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(200, 180, 160, 0.5);
+  width: 350px;
+}
+
+.search-bar input {
+  background: transparent;
+  border: none;
+  color: white;
+  padding: 10px;
+  flex: 1;
+  outline: none;
+  font-size: 14px;
+}
+
+.search-bar input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.search-btn, .search-clear {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 5px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.search-btn:hover, .search-clear:hover {
+  color: rgba(200, 180, 160, 1);
+  transform: scale(1.1);
+}
+
+/* ============================================
+   USER DROPDOWN MENU
+   ============================================ */
+
+.header-profile-dropdown {
+  position: relative;
+}
+
+.header-profile {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  overflow: hidden;
+  border: 2px solid rgba(200, 180, 160, 0.4);
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #a47148 0%, #8b5a3c 100%);
+  color: white;
+  font-weight: 500;
+}
+
+.header-profile:hover {
+  border-color: rgba(200, 180, 160, 0.8);
+  transform: scale(1.05);
+  box-shadow: 0 0 15px rgba(200, 180, 160, 0.3);
+}
+
+.avatar-initial {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 50px;
+  right: 0;
+  background: #1a1a1a;
+  border: 1px solid rgba(200, 180, 160, 0.3);
+  border-radius: 12px;
+  min-width: 180px;
+  padding: 8px 0;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+  z-index: 1001;
+  animation: dropdownSlide 0.2s ease;
+}
+
+@keyframes dropdownSlide {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dropdown-menu a,
+.dropdown-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 12px 20px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.dropdown-menu a:hover,
+.dropdown-menu button:hover {
+  background: rgba(200, 180, 160, 0.15);
+  color: rgba(200, 180, 160, 1);
+}
+
+.dropdown-logout {
+  border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: rgba(255, 120, 120, 0.9) !important;
+  margin-top: 4px;
+}
+
+.dropdown-logout:hover {
+  background: rgba(200, 50, 50, 0.2) !important;
+  color: rgba(255, 150, 150, 1) !important;
+}
+
+/* ============================================
+   SEARCH RESULTS
+   ============================================ */
+
+.search-results {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding-bottom: 60px;
+}
+
+.search-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.search-header h2 {
+  font-size: 20px;
+  font-weight: 300;
+  color: rgba(200, 180, 160, 0.9);
+  letter-spacing: 1px;
+}
+
+.clear-search-btn {
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.7);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.3s;
+}
+
+.clear-search-btn:hover {
+  background: rgba(200, 180, 160, 0.2);
+  border-color: rgba(200, 180, 160, 0.4);
+  color: rgba(200, 180, 160, 1);
+}
+
+.search-section {
+  margin-bottom: 40px;
+}
+
+.search-section h3 {
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 20px;
+}
+
+.designers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.designer-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 25px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.designer-card:hover {
+  transform: translateY(-5px);
+  border-color: rgba(200, 180, 160, 0.4);
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+}
+
+.designer-card-avatar,
+.designer-card-avatar-placeholder {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin: 0 auto 15px;
+  border: 3px solid rgba(200, 180, 160, 0.4);
+}
+
+.designer-card-avatar-placeholder {
+  background: linear-gradient(135deg, #a47148 0%, #8b5a3c 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: 300;
+  color: white;
+}
+
+.designer-card-info h4 {
+  margin: 0 0 5px 0;
+  font-size: 16px;
+  color: rgba(200, 180, 160, 1);
+  font-weight: 500;
+}
+
+.designer-card-info p {
+  margin: 0 0 10px 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.specialty-tag {
+  display: inline-block;
+  padding: 4px 12px;
+  background: rgba(200, 180, 160, 0.15);
+  border: 1px solid rgba(200, 180, 160, 0.3);
+  border-radius: 20px;
+  font-size: 11px;
+  color: rgba(200, 180, 160, 0.9);
+}
+
+/* ============================================
+   PASSWORD MODAL
+   ============================================ */
+
+.password-modal {
+  max-width: 450px;
+}
+
+.password-modal .form-field {
+  margin-bottom: 20px;
+}
+
+.password-modal .form-field label {
+  display: block;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+
+.password-modal .form-field input {
+  width: 100%;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: white;
+  font-size: 14px;
+  outline: none;
+}
+
+.password-modal .form-field input:focus {
+  border-color: rgba(200, 180, 160, 0.5);
+}
+
+/* ============================================
+   BOTTOM NAV (updated — no logout)
+   ============================================ */
+
+.bottom-nav {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  padding: 15px;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+}
+
+.bottom-nav .nav-item {
+  color: rgba(255, 255, 255, 0.6);
+  text-decoration: none;
+  font-size: 13px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  padding: 8px 20px;
+  border-radius: 20px;
+}
+
+.bottom-nav .nav-item:hover,
+.bottom-nav .nav-item.active {
+  color: rgba(200, 180, 160, 1);
+  background: rgba(200, 180, 160, 0.1);
+}
+
+/* ============================================
+   STUDIO HEADER AVATAR (Designer.jsx)
+   ============================================ */
+
+.studio-header-actions {
+  position: relative;
+}
+
+.studio-header-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  cursor: pointer;
+  overflow: hidden;
+  border: 2px solid rgba(200, 180, 160, 0.4);
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #a47148 0%, #8b5a3c 100%);
+  color: white;
+}
+
+.studio-header-avatar:hover {
+  border-color: rgba(200, 180, 160, 0.8);
+  transform: scale(1.05);
+}
+
+.studio-dropdown {
+  top: 48px;
+}
+
+/* ============================================
    SCROLLBAR (Discovery Main)
    ============================================ */
 

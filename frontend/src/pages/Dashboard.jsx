@@ -1,6 +1,4 @@
-// Dashboard JSX
-
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import API from "../services/api";
 import { useSocket } from '../context/SocketContext';
@@ -20,6 +18,15 @@ function Dashboard() {
   const navigate = useNavigate();
   const socket = useSocket();
 
+  // ADDED: Search & Dropdown state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ current: "", new: "", confirm: "" });
+  const menuRef = useRef(null);
+
   useEffect(() => {
     const userData = localStorage.getItem("user");
     if (!userData) {
@@ -31,7 +38,17 @@ function Dashboard() {
     }
   }, [navigate]);
 
-  // Listen for real-time events
+  // ADDED: Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setShowUserMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   useEffect(() => {
     if (!socket) return;
 
@@ -129,6 +146,55 @@ function Dashboard() {
       fetchComments(selectedDesign.design_id);
     }
   }, [selectedDesign, fetchComments]);
+
+  // ADDED: Search handlers
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) {
+      setSearchResults(null);
+      setIsSearching(false);
+      return;
+    }
+    setIsSearching(true);
+    setLoading(true);
+    try {
+      const res = await API.get(`/search?q=${encodeURIComponent(searchQuery)}&userId=${user.user_id}`);
+      setSearchResults(res.data);
+    } catch (err) {
+      console.error("Search error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchQuery("");
+    setSearchResults(null);
+    setIsSearching(false);
+  };
+
+  // ADDED: Change password handler
+  const handleChangePassword = async () => {
+    if (passwordForm.new !== passwordForm.confirm) {
+      alert("New passwords do not match");
+      return;
+    }
+    if (passwordForm.new.length < 6) {
+      alert("Password must be at least 6 characters");
+      return;
+    }
+    try {
+      await API.put(`/users/${user.user_id}/password`, {
+        current_password: passwordForm.current,
+        new_password: passwordForm.new
+      });
+      alert("Password changed successfully!");
+      setShowChangePassword(false);
+      setPasswordForm({ current: "", new: "", confirm: "" });
+    } catch (err) {
+      alert(err.response?.data?.error || "Error changing password");
+    }
+  };
 
   const getFilteredDesigns = () => {
     if (activeTab === "trending") {
@@ -367,7 +433,7 @@ function Dashboard() {
   };
 
   if (!user) return null;
-  if (loading) return <div className="loading">Loading...</div>;
+  if (loading && !isSearching) return <div className="loading">Loading...</div>;
 
   return (
     <div className="discovery-page">
@@ -377,19 +443,19 @@ function Dashboard() {
           <nav className="tab-nav">
             <button 
               className={activeTab === "trending" ? "active" : ""} 
-              onClick={() => setActiveTab("trending")}
+              onClick={() => { setActiveTab("trending"); clearSearch(); }}
             >
               TRENDING
             </button>
             <button 
               className={activeTab === "foryou" ? "active" : ""} 
-              onClick={() => setActiveTab("foryou")}
+              onClick={() => { setActiveTab("foryou"); clearSearch(); }}
             >
               FOR YOU
             </button>
             <button 
               className={activeTab === "activity" ? "active" : ""} 
-              onClick={() => setActiveTab("activity")}
+              onClick={() => { setActiveTab("activity"); clearSearch(); }}
             >
               MY ACTIVITY
             </button>
@@ -397,21 +463,141 @@ function Dashboard() {
         </div>
         
         <div className="header-right">
-          <div className="search-bar">
-            <input type="text" placeholder="Search designers or designs..." />
-          </div>
-          <Link to="/profile" className="header-profile">
-            {user.avatar_url ? (
-              <img src={user.avatar_url} alt={user.username} className="avatar-small" />
-            ) : (
-              user.username?.[0]?.toUpperCase()
+          {/* ADDED: Working search bar */}
+          <form className="search-bar" onSubmit={handleSearch}>
+            <input 
+              type="text" 
+              placeholder="Search designers or designs..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button type="button" className="search-clear" onClick={clearSearch}>×</button>
             )}
-          </Link>
+            <button type="submit" className="search-btn">🔍</button>
+          </form>
+          
+          {/* ADDED: Avatar dropdown */}
+          <div className="header-profile-dropdown" ref={menuRef}>
+            <div className="header-profile" onClick={() => setShowUserMenu(!showUserMenu)}>
+              {user.avatar_url ? (
+                <img src={user.avatar_url} alt={user.username} className="avatar-small" />
+              ) : (
+                <div className="avatar-initial">{user.username?.[0]?.toUpperCase()}</div>
+              )}
+            </div>
+            
+            {showUserMenu && (
+              <div className="dropdown-menu">
+                <Link to="/profile" onClick={() => setShowUserMenu(false)}>👤 Profile</Link>
+                <Link to="/profile" onClick={() => setShowUserMenu(false)}>✏️ Edit Profile</Link>
+                <button onClick={() => { setShowUserMenu(false); setShowChangePassword(true); }}>
+                  🔒 Change Password
+                </button>
+                <button onClick={() => { setShowUserMenu(false); logout(); }} className="dropdown-logout">
+                  🚪 Logout
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
       <main className="discovery-main">
-        {activeTab === "activity" ? (
+        {/* ADDED: Search Results View */}
+        {isSearching && searchResults ? (
+          <div className="search-results">
+            <div className="search-header">
+              <h2>Search Results for "{searchQuery}"</h2>
+              <button className="clear-search-btn" onClick={clearSearch}>Clear Search</button>
+            </div>
+            
+            {searchResults.designers?.length > 0 && (
+              <div className="search-section">
+                <h3>Designers</h3>
+                <div className="designers-grid">
+                  {searchResults.designers.map(designer => (
+                    <div 
+                      key={designer.user_id} 
+                      className="designer-card"
+                      onClick={() => { clearSearch(); navigate(`/designer/${designer.user_id}`); }}
+                    >
+                      {designer.avatar_url ? (
+                        <img src={designer.avatar_url} alt={designer.username} className="designer-card-avatar" />
+                      ) : (
+                        <div className="designer-card-avatar-placeholder">
+                          {designer.username?.[0]?.toUpperCase()}
+                        </div>
+                      )}
+                      <div className="designer-card-info">
+                        <h4>{designer.brand_name || designer.username}</h4>
+                        <p>@{designer.username}</p>
+                        {designer.specialty && <span className="specialty-tag">{designer.specialty}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {searchResults.designs?.length > 0 && (
+              <div className="search-section">
+                <h3>Designs</h3>
+                <div className="discovery-grid">
+                  {searchResults.designs.map((design) => (
+                    <div 
+                      key={design.design_id} 
+                      className="design-card"
+                      onClick={() => setSelectedDesign(design)}
+                    >
+                      <div className="design-image">
+                        <img src={`${design.image_url}?t=${design.updated_at || Date.now()}`} alt={design.title} />
+                        <button 
+                          className={`heart-btn ${likedDesigns.includes(design.design_id) ? 'liked' : ''}`}
+                          onClick={(e) => handleLike(design.design_id, e)}
+                        >
+                          {likedDesigns.includes(design.design_id) ? '♥' : '♡'}
+                        </button>
+                        <div className="design-overlay-info">
+                          <span 
+                            className="designer-badge clickable"
+                            onClick={(e) => navigateToDesigner(design.designer_id, e)}
+                          >
+                            {design.brand_name || design.designer_name}
+                          </span>
+                          {design.designer_id !== user.user_id && (
+                            <button 
+                              className={`follow-btn ${isFollowing(design.designer_id) ? 'following' : ''}`}
+                              onClick={(e) => handleFollow(design.designer_id, e)}
+                            >
+                              {isFollowing(design.designer_id) ? 'Following' : 'Follow'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="design-info">
+                        <h3>{design.title}</h3>
+                        <p>{design.season}</p>
+                        <div className="design-stats">
+                          <span>❤️ {design.like_count || 0}</span>
+                          <span>⭐ {design.rating_count || 0} ratings</span>
+                          <span>💬 {design.comment_count || 0}</span>
+                        </div>
+                        {renderStars(design)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {searchResults.designers?.length === 0 && searchResults.designs?.length === 0 && (
+              <div className="empty-state">
+                <p>No designers or designs found matching "{searchQuery}"</p>
+              </div>
+            )}
+          </div>
+        ) : activeTab === "activity" ? (
           <div className="activity-section">
             {groupedActivity.length === 0 ? (
               <div className="empty-state">
@@ -548,6 +734,7 @@ function Dashboard() {
         )}
       </main>
 
+      {/* Design Modal (unchanged except added password modal below) */}
       {selectedDesign && (
         <div className="modal-overlay" onClick={() => setSelectedDesign(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -667,7 +854,6 @@ function Dashboard() {
                     View Designer Profile →
                   </button>
 
-                  {/* COMMENTS SECTION */}
                   <div className="comments-section">
                     <h4>
                       Comments 
@@ -753,10 +939,48 @@ function Dashboard() {
         </div>
       )}
 
+      {/* ADDED: Change Password Modal */}
+      {showChangePassword && (
+        <div className="modal-overlay" onClick={() => setShowChangePassword(false)}>
+          <div className="modal-content password-modal" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setShowChangePassword(false)}>×</button>
+            <h2>Change Password</h2>
+            <div className="form-field">
+              <label>Current Password</label>
+              <input 
+                type="password" 
+                value={passwordForm.current}
+                onChange={(e) => setPasswordForm({...passwordForm, current: e.target.value})}
+              />
+            </div>
+            <div className="form-field">
+              <label>New Password</label>
+              <input 
+                type="password" 
+                value={passwordForm.new}
+                onChange={(e) => setPasswordForm({...passwordForm, new: e.target.value})}
+              />
+            </div>
+            <div className="form-field">
+              <label>Confirm New Password</label>
+              <input 
+                type="password" 
+                value={passwordForm.confirm}
+                onChange={(e) => setPasswordForm({...passwordForm, confirm: e.target.value})}
+              />
+            </div>
+            <div className="edit-actions">
+              <button className="btn-secondary" onClick={() => setShowChangePassword(false)}>Cancel</button>
+              <button className="btn-primary" onClick={handleChangePassword}>Update Password</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* UPDATED: Bottom nav without logout */}
       <nav className="bottom-nav">
         <Link to="/dashboard" className="nav-item active">Discover</Link>
         <Link to="/profile" className="nav-item">Profile</Link>
-        <button onClick={logout} className="nav-item logout">Logout</button>
       </nav>
     </div>
   );

@@ -32,7 +32,6 @@ const cloudinaryStorage = new CloudinaryStorage({
   }
 });
 
-// Use Cloudinary in production, local disk in development
 const isProduction = process.env.NODE_ENV === 'production';
 let upload;
 
@@ -46,7 +45,6 @@ if (isProduction) {
     }
   });
 } else {
-  // Local development - keep your existing disk storage
   const uploadsDir = path.join(__dirname, "uploads");
   if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
   
@@ -67,23 +65,20 @@ if (isProduction) {
     }
   });
 }
-// =====================================
 
 const app = express();
 const connectedUsers = new Map();
 
-// ================= CONFIG =================
 const PORT = process.env.PORT || 5000;
 const DB_HOST = process.env.DB_HOST || "localhost";
 const DB_USER = process.env.DB_USER || "root";
 const DB_PASSWORD = process.env.DB_PASSWORD || "";
-const DB_NAME = process.env.DB_NAME || "runway_db";  // 
+const DB_NAME = process.env.DB_NAME || "runway_db";
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 
 console.log("🔧 Config:", { PORT, DB_HOST, FRONTEND_URL, NODE_ENV: process.env.NODE_ENV });
 
-// ========== CORS (Multi-Origin) ==========
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
@@ -100,11 +95,8 @@ app.use(cors({
 }));
 
 app.use(express.json());
-
-// Static files (local only - production uses Cloudinary URLs directly)
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// MySQL connection
 const db = mysql.createPool({
   host: DB_HOST,
   port: process.env.DB_PORT || 3306,
@@ -119,11 +111,9 @@ const db = mysql.createPool({
 
 global.db = db;
 
-// Import admin routes
 const adminRoutes = require('./routes/admin');
 app.use('/api/admin', adminRoutes);
 
-// Test connection
 db.getConnection((err, connection) => {
   if (err) console.error("❌ Database connection failed:", err);
   else {
@@ -132,7 +122,6 @@ db.getConnection((err, connection) => {
   }
 });
 
-// Helper: Log activity
 const logActivity = (user_id, action_type, target_id = null, details = '') => {
   db.query(
     "INSERT INTO activity_logs (user_id, action_type, target_id, details) VALUES (?, ?, ?, ?)",
@@ -141,7 +130,6 @@ const logActivity = (user_id, action_type, target_id = null, details = '') => {
   );
 };
 
-// Helper: Get full image URL
 const getImageUrl = (pathOrUrl) => {
   if (!pathOrUrl) return null;
   if (pathOrUrl.startsWith('http')) return pathOrUrl;
@@ -290,7 +278,17 @@ app.get("/api/users/:id", (req, res) => {
         (err, followResult) => {
           if (err) return res.status(500).json({ error: err.message });
           userData.follower_count = followResult[0].follower_count;
-          res.json(userData);
+          
+          // ADDED: following count (how many this user follows)
+          db.query(
+            "SELECT COUNT(*) as following_count FROM follows WHERE follower_id = ?",
+            [userId],
+            (err, followingResult) => {
+              if (err) return res.status(500).json({ error: err.message });
+              userData.following_count = followingResult[0].following_count;
+              res.json(userData);
+            }
+          );
         }
       );
     }
@@ -335,6 +333,116 @@ app.post("/api/users/:id/avatar", upload.single("avatar"), (req, res) => {
       });
     }
   );
+});
+
+// ================= CHANGE PASSWORD =================
+app.put("/api/users/:id/password", async (req, res) => {
+  const userId = req.params.id;
+  const { current_password, new_password } = req.body;
+  
+  if (!current_password || !new_password || new_password.length < 6) {
+    return res.status(400).json({ 
+      success: false, 
+      error: "Current password and new password (min 6 chars) required" 
+    });
+  }
+  
+  try {
+    const [users] = await db.promise().query(
+      "SELECT password FROM users WHERE user_id = ?", 
+      [userId]
+    );
+    
+    if (users.length === 0) {
+      return res.status(404).json({ success: false, error: "User not found" });
+    }
+    
+    const match = await bcrypt.compare(current_password, users[0].password);
+    if (!match) {
+      return res.status(401).json({ success: false, error: "Current password is incorrect" });
+    }
+    
+    const hashed = await bcrypt.hash(new_password, 10);
+    await db.promise().query(
+      "UPDATE users SET password = ? WHERE user_id = ?", 
+      [hashed, userId]
+    );
+    
+    logActivity(userId, 'change_password');
+    res.json({ success: true, message: "Password updated successfully" });
+  } catch (err) {
+    console.error("Change password error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ================= SEARCH =================
+app.get("/api/search", (req, res) => {
+  const { q, userId } = req.query;
+  if (!q || q.trim().length < 2) {
+    return res.status(400).json({ error: "Search query must be at least 2 characters" });
+  }
+  
+  const searchTerm = `%${q.trim()}%`;
+  const numericId = parseInt(q.trim());
+  const isNumeric = !isNaN(numericId);
+  
+  const designQuery = `
+    SELECT d.*, u.username as designer_name, u.brand_name, u.avatar_url as designer_avatar,
+           (SELECT AVG(rating) FROM ratings WHERE design_id = d.design_id) as avg_rating,
+           (SELECT COUNT(*) FROM ratings WHERE design_id = d.design_id) as rating_count,
+           (SELECT COUNT(*) FROM likes WHERE design_id = d.design_id) as like_count,
+           (SELECT COUNT(*) FROM comments WHERE design_id = d.design_id) as comment_count
+    FROM designs d
+    JOIN users u ON d.designer_id = u.user_id
+    WHERE d.status = 'active' AND (d.title LIKE ? OR d.description LIKE ? OR d.season LIKE ?)
+    ORDER BY d.created_at DESC
+    LIMIT 12
+  `;
+  
+  const designerQuery = `
+    SELECT user_id, username, brand_name, specialty, location, avatar_url, bio
+    FROM users
+    WHERE role = 'designer' AND (username LIKE ? OR brand_name LIKE ? OR email LIKE ? ${isNumeric ? 'OR user_id = ?' : ''})
+    LIMIT 12
+  `;
+  
+  const designerParams = [searchTerm, searchTerm, searchTerm];
+  if (isNumeric) designerParams.push(numericId);
+  
+  db.query(designQuery, [searchTerm, searchTerm, searchTerm], (err, designs) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    db.query(designerQuery, designerParams, (err2, designers) => {
+      if (err2) return res.status(500).json({ error: err2.message });
+      
+      designs.forEach(d => {
+        d.designer_avatar = getImageUrl(d.designer_avatar);
+        d.image_url = getImageUrl(d.image_url);
+      });
+      
+      designers.forEach(d => {
+        d.avatar_url = getImageUrl(d.avatar_url);
+      });
+      
+      if (userId && designs.length > 0) {
+        const designIds = designs.map(d => d.design_id);
+        db.query(
+          "SELECT design_id FROM likes WHERE user_id = ? AND design_id IN (?)",
+          [userId, designIds],
+          (err3, likes) => {
+            if (!err3) {
+              const likedIds = likes.map(l => l.design_id);
+              designs.forEach(d => d.is_liked = likedIds.includes(d.design_id));
+            }
+            res.json({ designs, designers });
+          }
+        );
+      } else {
+        res.json({ designs, designers });
+      }
+    });
+  });
 });
 
 // ================= DESIGNS =================
@@ -396,9 +504,166 @@ app.get("/api/designs", (req, res) => {
   });
 });
 
-// ================= COMMENTS =================
+app.get("/api/designs/designer/:designerId", (req, res) => {
+  const designerId = req.params.designerId;
+  const viewerId = req.query.viewerId;
+  
+  let sql = `
+    SELECT d.*, 
+     (SELECT AVG(rating) FROM ratings WHERE design_id = d.design_id) as avg_rating,
+     (SELECT COUNT(*) FROM ratings WHERE design_id = d.design_id) as rating_count,
+     (SELECT COUNT(*) FROM likes WHERE design_id = d.design_id) as like_count,
+     (SELECT COUNT(*) FROM comments WHERE design_id = d.design_id) as comment_count
+     FROM designs d 
+     WHERE d.designer_id = ?`;
+  
+  const params = [designerId];
+  
+  if (!viewerId || viewerId != designerId) {
+    sql += ` AND d.status = 'active'`;
+  }
+  
+  sql += ` ORDER BY d.created_at DESC`;
+  
+  db.query(sql, params, (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    results.forEach(d => d.image_url = getImageUrl(d.image_url));
+    res.json(results);
+  });
+});
 
-// Get comments for a design
+app.post("/api/designs", upload.single("image"), (req, res) => {
+  const { designer_id, title, description, season } = req.body;
+  
+  if (!req.file) return res.status(400).json({ error: "No image uploaded" });
+  
+  const imageUrl = isProduction ? req.file.path : `/uploads/${req.file.filename}`;
+  
+  db.query(
+    "INSERT INTO designs (designer_id, title, description, image_url, season) VALUES (?, ?, ?, ?, ?)",
+    [designer_id, title, description, imageUrl, season],
+    (err, result) => {
+      if (err) {
+        console.error("Database error:", err);
+        return res.status(500).json({ error: err.message });
+      }
+      
+      logActivity(designer_id, 'upload_design', result.insertId, `Uploaded: ${title}`);
+      
+      const designData = {
+        design_id: result.insertId,
+        designer_id,
+        title,
+        description,
+        season,
+        image_url: getImageUrl(imageUrl),
+        created_at: new Date().toISOString()
+      };
+      
+      if (global.io) global.io.emit('design_uploaded', designData);
+      
+      res.json({ 
+        message: "Design uploaded successfully", 
+        design_id: result.insertId,
+        image_url: getImageUrl(imageUrl)
+      });
+    }
+  );
+});
+
+app.post("/api/designs/:id/update-with-image", upload.single("image"), async (req, res) => {
+  const designId = req.params.id;
+  const { designer_id, title, description, season } = req.body;
+  
+  try {
+    const [oldDesign] = await db.promise().query(
+      "SELECT image_url FROM designs WHERE design_id = ? AND designer_id = ?",
+      [designId, designer_id]
+    );
+    
+    let updateQuery, params;
+    
+    if (req.file) {
+      const newImageUrl = isProduction ? req.file.path : `/uploads/${req.file.filename}`;
+      updateQuery = `UPDATE designs SET title = ?, description = ?, season = ?, image_url = ?, updated_at = CURRENT_TIMESTAMP WHERE design_id = ? AND designer_id = ?`;
+      params = [title, description, season, newImageUrl, designId, designer_id];
+    } else {
+      updateQuery = `UPDATE designs SET title = ?, description = ?, season = ?, updated_at = CURRENT_TIMESTAMP WHERE design_id = ? AND designer_id = ?`;
+      params = [title, description, season, designId, designer_id];
+    }
+    
+    const [result] = await db.promise().query(updateQuery, params);
+    
+    if (result.affectedRows === 0) {
+      return res.status(403).json({ error: "Unauthorized or design not found" });
+    }
+    
+    res.json({ message: "Design updated successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/designs/:id", async (req, res) => {
+  const designId = req.params.id;
+  const designer_id = req.body.designer_id || req.query.designerId;
+
+  try {
+    if (!designer_id) {
+      return res.status(400).json({ error: "designer_id required" });
+    }
+
+    const designerIdNum = parseInt(designer_id);
+    if (isNaN(designerIdNum)) {
+      return res.status(400).json({ error: "Invalid designer_id" });
+    }
+
+    const [designRows] = await db.promise().query(
+      "SELECT * FROM designs WHERE design_id = ?",
+      [designId]
+    );
+
+    if (!designRows || designRows.length === 0) {
+      return res.status(404).json({ error: "Design not found" });
+    }
+
+    const design = designRows[0];
+
+    const [userRows] = await db.promise().query(
+      "SELECT role FROM users WHERE user_id = ?",
+      [designerIdNum]
+    );
+    
+    const userRole = userRows && userRows.length > 0 ? userRows[0].role : null;
+    const isAdmin = userRole === 'admin';
+    const isOwner = design.designer_id == designerIdNum;
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ error: "Unauthorized" });
+    }
+
+    await db.promise().query("DELETE FROM likes WHERE design_id = ?", [designId]);
+    await db.promise().query("DELETE FROM ratings WHERE design_id = ?", [designId]);
+    await db.promise().query("DELETE FROM designs WHERE design_id = ?", [designId]);
+
+    logActivity(designerIdNum, 'delete_design', designId, `Deleted: ${design.title || 'Untitled'}`);
+
+    if (global.io) {
+      global.io.emit('design_deleted', { 
+        design_id: parseInt(designId),
+        designer_id: parseInt(design.designer_id)
+      });
+    }
+
+    res.json({ success: true, message: "Design deleted" });
+
+  } catch (err) {
+    console.error("Delete design error:", err);
+    res.status(500).json({ error: err.message || "Unknown server error" });
+  }
+});
+
+// ================= COMMENTS =================
 app.get("/api/designs/:id/comments", (req, res) => {
   const designId = req.params.id;
   
@@ -421,7 +686,6 @@ app.get("/api/designs/:id/comments", (req, res) => {
   );
 });
 
-// Add a comment
 app.post("/api/comments", (req, res) => {
   const { user_id, design_id, content } = req.body;
   
@@ -437,7 +701,6 @@ app.post("/api/comments", (req, res) => {
       
       logActivity(user_id, 'comment', design_id, `Commented on design #${design_id}`);
       
-      // Fetch the complete comment with user info to emit
       db.query(
         `SELECT c.*, u.username, u.avatar_url, u.role
          FROM comments c
@@ -467,7 +730,6 @@ app.post("/api/comments", (req, res) => {
   );
 });
 
-// Delete a comment (only owner or admin)
 app.delete("/api/comments/:id", async (req, res) => {
   const commentId = req.params.id;
   const { user_id } = req.body;
@@ -520,174 +782,6 @@ app.delete("/api/comments/:id", async (req, res) => {
   }
 });
 
-app.get("/api/designs/designer/:designerId", (req, res) => {
-  const designerId = req.params.designerId;
-  const viewerId = req.query.viewerId;
-  
-  let sql = `
-    SELECT d.*, 
-     (SELECT AVG(rating) FROM ratings WHERE design_id = d.design_id) as avg_rating,
-     (SELECT COUNT(*) FROM ratings WHERE design_id = d.design_id) as rating_count,
-     (SELECT COUNT(*) FROM likes WHERE design_id = d.design_id) as like_count,
-     (SELECT COUNT(*) FROM comments WHERE design_id = d.design_id) as comment_count
-     FROM designs d 
-     WHERE d.designer_id = ?`;
-  
-  const params = [designerId];
-  
-  // Visitors only see active designs; designer sees their own hidden posts too
-  if (!viewerId || viewerId != designerId) {
-    sql += ` AND d.status = 'active'`;
-  }
-  
-  sql += ` ORDER BY d.created_at DESC`;
-  
-  db.query(sql, params, (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
-    results.forEach(d => d.image_url = getImageUrl(d.image_url));
-    res.json(results);
-  });
-});
-
-// Create design (upload)
-app.post("/api/designs", upload.single("image"), (req, res) => {
-  const { designer_id, title, description, season } = req.body;
-  
-  if (!req.file) return res.status(400).json({ error: "No image uploaded" });
-  
-  const imageUrl = isProduction ? req.file.path : `/uploads/${req.file.filename}`;
-  
-  db.query(
-    "INSERT INTO designs (designer_id, title, description, image_url, season) VALUES (?, ?, ?, ?, ?)",
-    [designer_id, title, description, imageUrl, season],
-    (err, result) => {
-      if (err) {
-        console.error("Database error:", err);
-        return res.status(500).json({ error: err.message });
-      }
-      
-      logActivity(designer_id, 'upload_design', result.insertId, `Uploaded: ${title}`);
-      
-      const designData = {
-        design_id: result.insertId,
-        designer_id,
-        title,
-        description,
-        season,
-        image_url: getImageUrl(imageUrl),
-        created_at: new Date().toISOString()
-      };
-      
-      if (global.io) global.io.emit('design_uploaded', designData);
-      
-      res.json({ 
-        message: "Design uploaded successfully", 
-        design_id: result.insertId,
-        image_url: getImageUrl(imageUrl)
-      });
-    }
-  );
-});
-
-// Update design with new image
-app.post("/api/designs/:id/update-with-image", upload.single("image"), async (req, res) => {
-  const designId = req.params.id;
-  const { designer_id, title, description, season } = req.body;
-  
-  try {
-    const [oldDesign] = await db.promise().query(
-      "SELECT image_url FROM designs WHERE design_id = ? AND designer_id = ?",
-      [designId, designer_id]
-    );
-    
-    let updateQuery, params;
-    
-    if (req.file) {
-      const newImageUrl = isProduction ? req.file.path : `/uploads/${req.file.filename}`;
-      updateQuery = `UPDATE designs SET title = ?, description = ?, season = ?, image_url = ?, updated_at = CURRENT_TIMESTAMP WHERE design_id = ? AND designer_id = ?`;
-      params = [title, description, season, newImageUrl, designId, designer_id];
-    } else {
-      updateQuery = `UPDATE designs SET title = ?, description = ?, season = ?, updated_at = CURRENT_TIMESTAMP WHERE design_id = ? AND designer_id = ?`;
-      params = [title, description, season, designId, designer_id];
-    }
-    
-    const [result] = await db.promise().query(updateQuery, params);
-    
-    if (result.affectedRows === 0) {
-      return res.status(403).json({ error: "Unauthorized or design not found" });
-    }
-    
-    res.json({ message: "Design updated successfully" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ================= DELETE DESIGN =================
-app.delete("/api/designs/:id", async (req, res) => {
-  const designId = req.params.id;
-  const designer_id = req.body.designer_id || req.query.designerId;
-
-  try {
-    if (!designer_id) {
-      return res.status(400).json({ error: "designer_id required" });
-    }
-
-    const designerIdNum = parseInt(designer_id);
-    if (isNaN(designerIdNum)) {
-      return res.status(400).json({ error: "Invalid designer_id" });
-    }
-
-    // Look up the design
-    const [designRows] = await db.promise().query(
-      "SELECT * FROM designs WHERE design_id = ?",
-      [designId]
-    );
-
-    if (!designRows || designRows.length === 0) {
-      return res.status(404).json({ error: "Design not found" });
-    }
-
-    const design = designRows[0];
-
-    // Check permissions
-    const [userRows] = await db.promise().query(
-      "SELECT role FROM users WHERE user_id = ?",
-      [designerIdNum]
-    );
-    
-    const userRole = userRows && userRows.length > 0 ? userRows[0].role : null;
-    const isAdmin = userRole === 'admin';
-    const isOwner = design.designer_id == designerIdNum;
-
-    if (!isOwner && !isAdmin) {
-      return res.status(403).json({ error: "Unauthorized" });
-    }
-
-    // ✅ FIX: Delete related records FIRST (FK constraint)
-    await db.promise().query("DELETE FROM likes WHERE design_id = ?", [designId]);
-    await db.promise().query("DELETE FROM ratings WHERE design_id = ?", [designId]);
-    
-    // Now delete the design
-    await db.promise().query("DELETE FROM designs WHERE design_id = ?", [designId]);
-
-    logActivity(designerIdNum, 'delete_design', designId, `Deleted: ${design.title || 'Untitled'}`);
-
-    if (global.io) {
-      global.io.emit('design_deleted', { 
-        design_id: parseInt(designId),
-        designer_id: parseInt(design.designer_id)
-      });
-    }
-
-    res.json({ success: true, message: "Design deleted" });
-
-  } catch (err) {
-    console.error("Delete design error:", err);
-    res.status(500).json({ error: err.message || "Unknown server error" });
-  }
-});
-
 // ================= LIKES =================
 app.post("/api/likes/toggle", (req, res) => {
   const { user_id, design_id } = req.body;
@@ -703,7 +797,6 @@ app.post("/api/likes/toggle", (req, res) => {
       if (err) return res.status(500).json({ error: err.message });
       
       if (result.length > 0) {
-        // Unlike
         db.query(
           "DELETE FROM likes WHERE user_id = ? AND design_id = ?",
           [user_id, design_id],
@@ -714,7 +807,6 @@ app.post("/api/likes/toggle", (req, res) => {
           }
         );
       } else {
-        // Like
         db.query(
           "INSERT INTO likes (user_id, design_id) VALUES (?, ?)",
           [user_id, design_id],
@@ -748,7 +840,6 @@ app.post("/api/ratings", (req, res) => {
       if (err) return res.status(500).json({ error: err.message });
       
       if (result.length > 0) {
-        // Update existing rating
         db.query(
           "UPDATE ratings SET rating = ? WHERE user_id = ? AND design_id = ?",
           [rating, user_id, design_id],
@@ -759,7 +850,6 @@ app.post("/api/ratings", (req, res) => {
           }
         );
       } else {
-        // Insert new rating
         db.query(
           "INSERT INTO ratings (user_id, design_id, rating) VALUES (?, ?, ?)",
           [user_id, design_id, rating],
@@ -789,7 +879,6 @@ app.post("/api/follows/toggle", (req, res) => {
       if (err) return res.status(500).json({ error: err.message });
       
       if (result.length > 0) {
-        // Unfollow
         db.query(
           "DELETE FROM follows WHERE follower_id = ? AND designer_id = ?",
           [follower_id, designer_id],
@@ -800,7 +889,6 @@ app.post("/api/follows/toggle", (req, res) => {
           }
         );
       } else {
-        // Follow
         db.query(
           "INSERT INTO follows (follower_id, designer_id) VALUES (?, ?)",
           [follower_id, designer_id],
@@ -837,7 +925,6 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "OK", timestamp: new Date().toISOString() });
 });
 
-// Error handling
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ error: err.message });
