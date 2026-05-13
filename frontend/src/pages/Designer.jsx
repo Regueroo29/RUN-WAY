@@ -16,7 +16,7 @@ function Designer() {
   const [uploadForm, setUploadForm] = useState({
     title: "",
     description: "",
-    season: "Spring 2026",
+    season: "Spring",
     image: null,
     imagePreview: "/RunWayIcon.jpg"
   });
@@ -24,7 +24,7 @@ function Designer() {
   const [editForm, setEditForm] = useState({
     title: "",
     description: "",
-    season: "Spring 2026",
+    season: "Spring",
     image: null,
     imagePreview: "/RunWayIcon.jpg"
   });
@@ -148,7 +148,7 @@ function Designer() {
     setUploadForm({
       title: "",
       description: "",
-      season: "Spring 2026",
+      season: "Spring",
       image: null,
       imagePreview: "/RunWayIcon.jpg"
     });
@@ -214,7 +214,7 @@ function Designer() {
     setEditForm({
       title: design.title,
       description: design.description || "",
-      season: design.season || "Spring 2026",
+      season: design.season || "Spring",
       image: null,
       imagePreview: design.image_url || "/RunWayIcon.jpg"
     });
@@ -458,10 +458,10 @@ function Designer() {
                       value={uploadForm.season}
                       onChange={(e) => setUploadForm({...uploadForm, season: e.target.value})}
                     >
-                      <option>Spring 2026</option>
-                      <option>Summer 2026</option>
-                      <option>Fall 2026</option>
-                      <option>Winter 2026</option>
+                      <option>Spring</option>
+                      <option>Summer</option>
+                      <option>Fall</option>
+                      <option>Winter</option>
                     </select>
                   </div>
                   
