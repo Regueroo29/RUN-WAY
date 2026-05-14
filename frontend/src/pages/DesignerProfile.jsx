@@ -162,19 +162,6 @@ function DesignerProfile() {
           ← BACK TO DISCOVERY
         </button>
         <h1 className="header-title">Designer Profile</h1>
-        
-        {/* Floating Navigation Dots */}
-        <nav className="floating-nav">
-          <button onClick={scrollToTop} className="nav-dot" title="Top">
-            <span className="nav-tooltip">Top</span>
-          </button>
-          <button onClick={scrollToWorks} className="nav-dot" title="Collections">
-            <span className="nav-tooltip">Collections</span>
-          </button>
-          <button onClick={scrollToAbout} className="nav-dot" title="About">
-            <span className="nav-tooltip">About</span>
-          </button>
-        </nav>
       </header>
 
       {/* Main Scrollable Area — mirrors discovery-main */}
