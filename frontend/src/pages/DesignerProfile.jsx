@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef, useCallback, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import API from "../services/api";
 import "./DesignerProfile.css";
 
@@ -17,35 +17,7 @@ function DesignerProfile() {
   
   const worksSectionRef = useRef(null);
   const aboutSectionRef = useRef(null);
-  const topRef = useRef(null);
-  const profileRef = useRef(null);
-
-  /* ─── Detect real scrolling container (window OR parent overflow-y) ─── */
-  const scrollContainer = useMemo(() => {
-    if (!profileRef.current) return window;
-    let el = profileRef.current;
-    while (el && el.parentElement) {
-      const style = window.getComputedStyle(el.parentElement);
-      if (style.overflowY === "auto" || style.overflowY === "scroll") {
-        return el.parentElement;
-      }
-      el = el.parentElement;
-    }
-    return window;
-  }, [profileRef.current]);
-
-  const getScrollTop = useCallback(() => {
-    if (scrollContainer === window) return window.scrollY;
-    return scrollContainer.scrollTop;
-  }, [scrollContainer]);
-
-  const scrollTo = useCallback((top) => {
-    if (scrollContainer === window) {
-      window.scrollTo({ top, behavior: "smooth" });
-    } else {
-      scrollContainer.scrollTo({ top, behavior: "smooth" });
-    }
-  }, [scrollContainer]);
+  const mainRef = useRef(null);
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
@@ -56,21 +28,18 @@ function DesignerProfile() {
     if (id) fetchDesignerData();
   }, [id, currentUser]);
 
-  /* ─── Scroll tracking (works with window OR nested container) ─── */
+  /* ─── Scroll tracking on MAIN (like Dashboard's discovery-main) ─── */
   useEffect(() => {
-    let ticking = false;
+    const main = mainRef.current;
+    if (!main) return;
     
+    let ticking = false;
     const handleScroll = () => {
       if (!ticking) {
         window.requestAnimationFrame(() => {
-          const scrollTop = getScrollTop();
-          const scrollHeight = scrollContainer === window
-            ? document.documentElement.scrollHeight
-            : scrollContainer.scrollHeight;
-          const clientHeight = scrollContainer === window
-            ? window.innerHeight
-            : scrollContainer.clientHeight;
-            
+          const scrollTop = main.scrollTop;
+          const scrollHeight = main.scrollHeight;
+          const clientHeight = main.clientHeight;
           const docHeight = scrollHeight - clientHeight;
           const progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
           
@@ -82,12 +51,10 @@ function DesignerProfile() {
       }
     };
 
-    scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
-    // Fire once immediately so progress bar shows on mount
-    handleScroll();
-    
-    return () => scrollContainer.removeEventListener("scroll", handleScroll);
-  }, [scrollContainer, getScrollTop]);
+    main.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll(); // fire once on mount
+    return () => main.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const fetchDesignerData = async () => {
     try {
@@ -141,40 +108,18 @@ function DesignerProfile() {
     }
   };
 
-  /* ─── Smooth scroll helpers (container-aware) ─── */
+  /* ─── Smooth scroll inside the main container ─── */
   const scrollToWorks = useCallback(() => {
-    const offset = 100;
-    const element = worksSectionRef.current;
-    if (!element) return;
-    
-    const containerTop = scrollContainer === window
-      ? 0
-      : scrollContainer.getBoundingClientRect().top;
-    const elementTop = element.getBoundingClientRect().top;
-    const currentScroll = getScrollTop();
-    const target = currentScroll + elementTop - containerTop - offset;
-    
-    scrollTo(target);
-  }, [scrollContainer, getScrollTop, scrollTo]);
+    worksSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   const scrollToAbout = useCallback(() => {
-    const offset = 100;
-    const element = aboutSectionRef.current;
-    if (!element) return;
-    
-    const containerTop = scrollContainer === window
-      ? 0
-      : scrollContainer.getBoundingClientRect().top;
-    const elementTop = element.getBoundingClientRect().top;
-    const currentScroll = getScrollTop();
-    const target = currentScroll + elementTop - containerTop - offset;
-    
-    scrollTo(target);
-  }, [scrollContainer, getScrollTop, scrollTo]);
+    aboutSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   const scrollToTop = useCallback(() => {
-    scrollTo(0);
-  }, [scrollTo]);
+    mainRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
 
   if (loading) {
     return (
@@ -204,36 +149,212 @@ function DesignerProfile() {
   }
 
   return (
-    <div className="designer-public-profile" ref={profileRef}>
+    <div className="designer-profile-page">
       {/* Scroll Progress Bar */}
       <div 
         className="scroll-progress-bar" 
         style={{ width: `${scrollProgress}%` }}
       />
 
-      {/* Fixed Background */}
-      <div className="designer-hero-bg">
-        <img src="/bgm.jpg" alt="Background" />
-        <div className="hero-overlay" />
-      </div>
+      {/* Header — matches Dashboard header structure */}
+      <header className="designer-profile-header">
+        <button className="back-to-discovery" onClick={() => navigate("/dashboard")}>
+          ← BACK TO DISCOVERY
+        </button>
+        <h1 className="header-title">Designer Profile</h1>
+        
+        {/* Floating Navigation Dots */}
+        <nav className="floating-nav">
+          <button onClick={scrollToTop} className="nav-dot" title="Top">
+            <span className="nav-tooltip">Top</span>
+          </button>
+          <button onClick={scrollToWorks} className="nav-dot" title="Collections">
+            <span className="nav-tooltip">Collections</span>
+          </button>
+          <button onClick={scrollToAbout} className="nav-dot" title="About">
+            <span className="nav-tooltip">About</span>
+          </button>
+        </nav>
+      </header>
 
-      {/* Fixed Back Button */}
-      <button className="back-to-discovery" onClick={() => navigate("/dashboard")}>
-        ← BACK TO DISCOVERY
-      </button>
+      {/* Main Scrollable Area — mirrors discovery-main */}
+      <main className="designer-profile-main" ref={mainRef}>
+        {/* Hero Background inside scrollable area */}
+        <div className="designer-hero-bg">
+          <img src="/bgm.jpg" alt="Background" />
+          <div className="hero-overlay" />
+        </div>
 
-      {/* Floating Navigation Dots */}
-      <nav className="floating-nav">
-        <button onClick={scrollToTop} className="nav-dot" title="Top">
-          <span className="nav-tooltip">Top</span>
-        </button>
-        <button onClick={scrollToWorks} className="nav-dot" title="Collections">
-          <span className="nav-tooltip">Collections</span>
-        </button>
-        <button onClick={scrollToAbout} className="nav-dot" title="About">
-          <span className="nav-tooltip">About</span>
-        </button>
-      </nav>
+        <div className="designer-profile-content">
+          {/* Left Sidebar */}
+          <aside className="designer-info-panel">
+            <div className="designer-avatar-large">
+              {designer.avatar_url ? (
+                <img src={designer.avatar_url} alt={designer.username} />
+              ) : (
+                <div className="avatar-initial">
+                  {designer.username?.[0]?.toUpperCase()}
+                </div>
+              )}
+            </div>
+            
+            <h1 className="designer-name">{designer.brand_name || designer.username}</h1>
+            <p className="designer-handle">@{designer.username}</p>
+            
+            {designer.specialty && (
+              <p className="designer-specialty">{designer.specialty}</p>
+            )}
+            
+            <div className="designer-stats-row">
+              <div className="stat-box clickable" onClick={scrollToWorks}>
+                <span className="stat-num">{designs.length}</span>
+                <span className="stat-label">Designs</span>
+              </div>
+              <div className="stat-box">
+                <span className="stat-num">{designer.follower_count || 0}</span>
+                <span className="stat-label">Followers</span>
+              </div>
+            </div>
+
+            <div className="quick-scroll-buttons">
+              <button onClick={scrollToWorks} className="quick-scroll-btn">
+                View Collections ↓
+              </button>
+              {designer.bio && (
+                <button onClick={scrollToAbout} className="quick-scroll-btn secondary">
+                  Read About ↓
+                </button>
+              )}
+            </div>
+
+            {currentUser && currentUser.user_id !== parseInt(id) && (
+              <button 
+                className={`follow-designer-btn ${isFollowing ? 'following' : ''}`}
+                onClick={handleFollow}
+              >
+                {isFollowing ? 'Following' : 'Follow'}
+              </button>
+            )}
+
+            {/* About Section */}
+            <div className="designer-bio-section" ref={aboutSectionRef}>
+              <h3>About</h3>
+              {designer.bio ? (
+                <p>{designer.bio}</p>
+              ) : (
+                <p className="no-bio">No bio added yet</p>
+              )}
+            </div>
+
+            <div className="designer-links-section">
+              {(designer.website || designer.instagram || designer.facebook || designer.twitter) ? (
+                <>
+                  <h3>Connect</h3>
+                  {designer.website && (
+                    <a 
+                      href={designer.website.startsWith('http') ? designer.website : `https://${designer.website}`} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="designer-link"
+                    >
+                      🌐 Website
+                    </a>
+                  )}
+                  {designer.instagram && (
+                    <a 
+                      href={`https://instagram.com/${designer.instagram.replace('@', '')}`} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="designer-link"
+                    >
+                      📷 Instagram
+                    </a>
+                  )}
+                  {designer.facebook && (
+                    <a 
+                      href={designer.facebook.startsWith('http') ? designer.facebook : `https://${designer.facebook}`} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="designer-link"
+                    >
+                      📘 Facebook
+                    </a>
+                  )}
+                  {designer.twitter && (
+                    <a 
+                      href={`https://twitter.com/${designer.twitter.replace('@', '')}`} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="designer-link"
+                    >
+                      🐦 Twitter
+                    </a>
+                  )}
+                </>
+              ) : (
+                <p className="no-links">No social links added</p>
+              )}
+            </div>
+          </aside>
+
+          {/* Right Panel — Collections */}
+          <section className="designer-works-panel" ref={worksSectionRef}>
+            <h2 className="works-title">Collections</h2>
+            
+            {designs.length === 0 ? (
+              <div className="no-designs-container">
+                <p className="no-designs">No designs uploaded yet</p>
+                <button onClick={scrollToTop} className="back-to-top-link">
+                  Back to Top ↑
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="works-grid">
+                  {designs.map((design, index) => (
+                    <div 
+                      key={design.design_id} 
+                      className="work-card"
+                      style={{ animationDelay: `${index * 0.1}s` }}
+                    >
+                      <div className="work-image">
+                        <img 
+                          src={
+                            design.image_url?.startsWith('http') 
+                              ? design.image_url 
+                              : `http://localhost:5000${design.image_url}`
+                          } 
+                          alt={design.title}
+                          loading="lazy"
+                          onError={(e) => { e.target.src = '/bgimage.jpg'; }}
+                        />
+                        <div className="work-overlay">
+                          <button className="view-details-btn">View Details</button>
+                        </div>
+                      </div>
+                      <div className="work-info">
+                        <h3>{design.title}</h3>
+                        <p>{design.season}</p>
+                        <div className="work-stats">
+                          <span>❤️ {design.like_count || 0}</span>
+                          <span>⭐ {design.avg_rating ? Number(design.avg_rating).toFixed(1) : '0.0'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="collections-end">
+                  <p>End of Collections</p>
+                  <button onClick={scrollToTop} className="back-to-top-link">
+                    Back to Top ↑
+                  </button>
+                </div>
+              </>
+            )}
+          </section>
+        </div>
+      </main>
 
       {/* Scroll to Top Button */}
       {showScrollTop && (
@@ -246,177 +367,11 @@ function DesignerProfile() {
         </button>
       )}
 
-      {/* Main Content */}
-      <div className="designer-profile-content" ref={topRef}>
-        
-        {/* Left Sidebar — sticky */}
-        <aside className="designer-info-panel">
-          <div className="designer-avatar-large">
-            {designer.avatar_url ? (
-              <img src={designer.avatar_url} alt={designer.username} />
-            ) : (
-              <div className="avatar-initial">
-                {designer.username?.[0]?.toUpperCase()}
-              </div>
-            )}
-          </div>
-          
-          <h1 className="designer-name">{designer.brand_name || designer.username}</h1>
-          <p className="designer-handle">@{designer.username}</p>
-          
-          {designer.specialty && (
-            <p className="designer-specialty">{designer.specialty}</p>
-          )}
-          
-          <div className="designer-stats-row">
-            <div className="stat-box clickable" onClick={scrollToWorks}>
-              <span className="stat-num">{designs.length}</span>
-              <span className="stat-label">Designs</span>
-            </div>
-            <div className="stat-box">
-              <span className="stat-num">{designer.follower_count || 0}</span>
-              <span className="stat-label">Followers</span>
-            </div>
-          </div>
-
-          <div className="quick-scroll-buttons">
-            <button onClick={scrollToWorks} className="quick-scroll-btn">
-              View Collections ↓
-            </button>
-            {designer.bio && (
-              <button onClick={scrollToAbout} className="quick-scroll-btn secondary">
-                Read About ↓
-              </button>
-            )}
-          </div>
-
-          {currentUser && currentUser.user_id !== parseInt(id) && (
-            <button 
-              className={`follow-designer-btn ${isFollowing ? 'following' : ''}`}
-              onClick={handleFollow}
-            >
-              {isFollowing ? 'Following' : 'Follow'}
-            </button>
-          )}
-
-          {/* About Section */}
-          <div className="designer-bio-section" ref={aboutSectionRef}>
-            <h3>About</h3>
-            {designer.bio ? (
-              <p>{designer.bio}</p>
-            ) : (
-              <p className="no-bio">No bio added yet</p>
-            )}
-          </div>
-
-          <div className="designer-links-section">
-            {(designer.website || designer.instagram || designer.facebook || designer.twitter) ? (
-              <>
-                <h3>Connect</h3>
-                {designer.website && (
-                  <a 
-                    href={designer.website.startsWith('http') ? designer.website : `https://${designer.website}`} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="designer-link"
-                  >
-                    🌐 Website
-                  </a>
-                )}
-                {designer.instagram && (
-                  <a 
-                    href={`https://instagram.com/${designer.instagram.replace('@', '')}`} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="designer-link"
-                  >
-                    📷 Instagram
-                  </a>
-                )}
-                {designer.facebook && (
-                  <a 
-                    href={designer.facebook.startsWith('http') ? designer.facebook : `https://${designer.facebook}`} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="designer-link"
-                  >
-                    📘 Facebook
-                  </a>
-                )}
-                {designer.twitter && (
-                  <a 
-                    href={`https://twitter.com/${designer.twitter.replace('@', '')}`} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="designer-link"
-                  >
-                    🐦 Twitter
-                  </a>
-                )}
-              </>
-            ) : (
-              <p className="no-links">No social links added</p>
-            )}
-          </div>
-        </aside>
-
-        {/* Right Panel — Collections */}
-        <section className="designer-works-panel" ref={worksSectionRef}>
-          <h2 className="works-title">Collections</h2>
-          
-          {designs.length === 0 ? (
-            <div className="no-designs-container">
-              <p className="no-designs">No designs uploaded yet</p>
-              <button onClick={scrollToTop} className="back-to-top-link">
-                Back to Top ↑
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="works-grid">
-                {designs.map((design, index) => (
-                  <div 
-                    key={design.design_id} 
-                    className="work-card"
-                    style={{ animationDelay: `${index * 0.1}s` }}
-                  >
-                    <div className="work-image">
-                      <img 
-                        src={
-                          design.image_url?.startsWith('http') 
-                            ? design.image_url 
-                            : `http://localhost:5000${design.image_url}`
-                        } 
-                        alt={design.title}
-                        loading="lazy"
-                        onError={(e) => { e.target.src = '/bgimage.jpg'; }}
-                      />
-                      <div className="work-overlay">
-                        <button className="view-details-btn">View Details</button>
-                      </div>
-                    </div>
-                    <div className="work-info">
-                      <h3>{design.title}</h3>
-                      <p>{design.season}</p>
-                      <div className="work-stats">
-                        <span>❤️ {design.like_count || 0}</span>
-                        <span>⭐ {design.avg_rating ? Number(design.avg_rating).toFixed(1) : '0.0'}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              <div className="collections-end">
-                <p>End of Collections</p>
-                <button onClick={scrollToTop} className="back-to-top-link">
-                  Back to Top ↑
-                </button>
-              </div>
-            </>
-          )}
-        </section>
-      </div>
+      {/* Bottom Nav — identical to Dashboard */}
+      <nav className="bottom-nav">
+        <Link to="/dashboard" className="nav-item">Discover</Link>
+        <Link to="/profile" className="nav-item">Profile</Link>
+      </nav>
     </div>
   );
 }
