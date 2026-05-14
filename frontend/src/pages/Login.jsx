@@ -145,8 +145,6 @@ function Login() {
             />
           </div>
 
-          <a href="#" className="forgot-link">FORGOT YOUR PASSWORD?</a>
-
           <button 
             onClick={handleSubmit} 
             className="submit-btn"
