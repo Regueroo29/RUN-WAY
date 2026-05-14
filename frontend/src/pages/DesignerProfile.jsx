@@ -325,6 +325,7 @@ function DesignerProfile() {
                         <div className="work-stats">
                           <span>❤️ {design.like_count || 0}</span>
                           <span>⭐ {design.avg_rating ? Number(design.avg_rating).toFixed(1) : '0.0'}</span>
+                          <span>💬 {design.comment_count || 0}</span>
                         </div>
                       </div>
                     </div>
