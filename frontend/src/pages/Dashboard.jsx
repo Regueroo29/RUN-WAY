@@ -1,3 +1,5 @@
+// Dashboard.jsx - Main discovery feed with tabs, search, and activity feed
+
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import API from "../services/api";

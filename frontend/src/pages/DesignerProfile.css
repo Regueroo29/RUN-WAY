@@ -1,10 +1,12 @@
-/* DESIGNER PROFILE CSS — Dashboard-style unified scroll */
+/* DESIGNER PROFILE CSS  */
 
 .designer-public-profile {
   min-height: 100vh;
+  height: 100%;           /* NEW: fills parent if inside a flex layout */
   background: #1a1a1a;
   color: white;
   position: relative;
+  overflow: visible;      /* NEW: allow sticky to escape if needed */
 }
 
 /* Scroll Progress Bar */
@@ -18,7 +20,7 @@
   transition: width 0.1s ease-out;
 }
 
-/* Fixed Background (like Dashboard header area) */
+/* Fixed Background */
 .designer-hero-bg {
   position: fixed;
   top: 0;
@@ -69,7 +71,6 @@
 /* ============================================
    FLOATING NAV (right side dots)
    ============================================ */
-
 .floating-nav {
   position: fixed;
   right: 30px;
@@ -122,7 +123,6 @@
 /* ============================================
    SCROLL TO TOP BUTTON
    ============================================ */
-
 .scroll-to-top-btn {
   position: fixed;
   bottom: 30px;
@@ -158,11 +158,10 @@
    MAIN CONTENT — Dashboard-style layout
    ============================================
    
-   Key: The entire page scrolls as one unit.
-   The sidebar is sticky within the flow.
-   No independent scrolling containers.
+   FIX: align-items: stretch ensures the grid row is as tall as the
+   tallest column (the works panel). This gives the sticky sidebar
+   enough vertical track to actually stick and scroll.
 */
-
 .designer-profile-content {
   position: relative;
   z-index: 1;
@@ -172,13 +171,12 @@
   display: grid;
   grid-template-columns: 350px 1fr;
   gap: 60px;
-  align-items: start;
+  align-items: stretch;   /* CHANGED from start → stretch */
 }
 
 /* ============================================
    LEFT SIDEBAR — Sticky, scrolls with page
    ============================================ */
-
 .designer-info-panel {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -186,10 +184,10 @@
   padding: 40px;
   text-align: center;
   
-  /* Dashboard-style: sticky within the grid, no max-height */
   position: sticky;
   top: 100px;
-  align-self: start;
+  align-self: start;      /* Keeps panel at natural height, not stretched */
+  height: fit-content;    /* NEW: ensures height is content-based */
 }
 
 .designer-avatar-large {
@@ -400,9 +398,7 @@
 /* ============================================
    RIGHT PANEL — Natural flow, no scroll container
    ============================================ */
-
 .designer-works-panel {
-  /* No height restrictions, flows with page */
   padding-bottom: 40px;
 }
 
@@ -518,7 +514,6 @@
 /* ============================================
    END OF COLLECTIONS
    ============================================ */
-
 .no-designs-container {
   text-align: center;
   padding: 60px 20px;
@@ -567,7 +562,6 @@
 /* ============================================
    LOADING & ERROR STATES
    ============================================ */
-
 .designer-profile-loading,
 .designer-profile-error {
   min-height: 100vh;
@@ -614,7 +608,6 @@
 /* ============================================
    RESPONSIVE
    ============================================ */
-
 @media (max-width: 968px) {
   .designer-profile-content {
     grid-template-columns: 1fr;
@@ -623,7 +616,7 @@
   }
   
   .designer-info-panel {
-    position: static;
+    position: static;   /* Disable sticky on mobile */
     order: -1;
   }
 

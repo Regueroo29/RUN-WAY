@@ -1,6 +1,4 @@
-// DESIGNER PROFILE JSX 
-
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import API from "../services/api";
 import "./DesignerProfile.css";
@@ -17,47 +15,79 @@ function DesignerProfile() {
   const [scrollProgress, setScrollProgress] = useState(0);
   const [showScrollTop, setShowScrollTop] = useState(false);
   
-  // Refs for scroll targets (like Dashboard's section refs)
   const worksSectionRef = useRef(null);
   const aboutSectionRef = useRef(null);
   const topRef = useRef(null);
+  const profileRef = useRef(null);
+
+  /* ─── Detect real scrolling container (window OR parent overflow-y) ─── */
+  const scrollContainer = useMemo(() => {
+    if (!profileRef.current) return window;
+    let el = profileRef.current;
+    while (el && el.parentElement) {
+      const style = window.getComputedStyle(el.parentElement);
+      if (style.overflowY === "auto" || style.overflowY === "scroll") {
+        return el.parentElement;
+      }
+      el = el.parentElement;
+    }
+    return window;
+  }, [profileRef.current]);
+
+  const getScrollTop = useCallback(() => {
+    if (scrollContainer === window) return window.scrollY;
+    return scrollContainer.scrollTop;
+  }, [scrollContainer]);
+
+  const scrollTo = useCallback((top) => {
+    if (scrollContainer === window) {
+      window.scrollTo({ top, behavior: "smooth" });
+    } else {
+      scrollContainer.scrollTo({ top, behavior: "smooth" });
+    }
+  }, [scrollContainer]);
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
-    if (userData) {
-      setCurrentUser(JSON.parse(userData));
-    }
+    if (userData) setCurrentUser(JSON.parse(userData));
   }, []);
 
   useEffect(() => {
-    if (id) {
-      fetchDesignerData();
-    }
+    if (id) fetchDesignerData();
   }, [id, currentUser]);
 
-  // Dashboard-style scroll tracking: single page scroll, no containers
+  /* ─── Scroll tracking (works with window OR nested container) ─── */
   useEffect(() => {
     let ticking = false;
     
     const handleScroll = () => {
       if (!ticking) {
         window.requestAnimationFrame(() => {
-          const scrollTop = window.scrollY;
-          const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+          const scrollTop = getScrollTop();
+          const scrollHeight = scrollContainer === window
+            ? document.documentElement.scrollHeight
+            : scrollContainer.scrollHeight;
+          const clientHeight = scrollContainer === window
+            ? window.innerHeight
+            : scrollContainer.clientHeight;
+            
+          const docHeight = scrollHeight - clientHeight;
           const progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
           
           setScrollProgress(Math.min(100, Math.max(0, progress)));
           setShowScrollTop(scrollTop > 300);
-          
           ticking = false;
         });
         ticking = true;
       }
     };
 
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+    scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
+    // Fire once immediately so progress bar shows on mount
+    handleScroll();
+    
+    return () => scrollContainer.removeEventListener("scroll", handleScroll);
+  }, [scrollContainer, getScrollTop]);
 
   const fetchDesignerData = async () => {
     try {
@@ -72,13 +102,14 @@ function DesignerProfile() {
       
       if (currentUser && currentUser.user_id !== parseInt(id)) {
         try {
-          const followRes = await API.get(`/follows/check?follower_id=${currentUser.user_id}&designer_id=${id}`);
+          const followRes = await API.get(
+            `/follows/check?follower_id=${currentUser.user_id}&designer_id=${id}`
+          );
           setIsFollowing(followRes.data.following);
         } catch (err) {
           console.log("Follow check failed:", err);
         }
       }
-      
     } catch (err) {
       console.error("Error fetching designer:", err);
       setError("Designer not found or error loading profile");
@@ -92,15 +123,12 @@ function DesignerProfile() {
       navigate("/login");
       return;
     }
-    
     try {
       const res = await API.post("/follows/toggle", {
         follower_id: currentUser.user_id,
         designer_id: id
       });
-      
       setIsFollowing(res.data.following);
-      
       setDesigner(prev => ({
         ...prev,
         follower_count: res.data.following 
@@ -113,34 +141,40 @@ function DesignerProfile() {
     }
   };
 
-  // Dashboard-style smooth scroll with offset
+  /* ─── Smooth scroll helpers (container-aware) ─── */
   const scrollToWorks = useCallback(() => {
-    const offset = 100; // Space for fixed elements
+    const offset = 100;
     const element = worksSectionRef.current;
-    if (element) {
-      const elementPosition = element.getBoundingClientRect().top + window.scrollY;
-      window.scrollTo({
-        top: elementPosition - offset,
-        behavior: "smooth"
-      });
-    }
-  }, []);
+    if (!element) return;
+    
+    const containerTop = scrollContainer === window
+      ? 0
+      : scrollContainer.getBoundingClientRect().top;
+    const elementTop = element.getBoundingClientRect().top;
+    const currentScroll = getScrollTop();
+    const target = currentScroll + elementTop - containerTop - offset;
+    
+    scrollTo(target);
+  }, [scrollContainer, getScrollTop, scrollTo]);
 
   const scrollToAbout = useCallback(() => {
     const offset = 100;
     const element = aboutSectionRef.current;
-    if (element) {
-      const elementPosition = element.getBoundingClientRect().top + window.scrollY;
-      window.scrollTo({
-        top: elementPosition - offset,
-        behavior: "smooth"
-      });
-    }
-  }, []);
+    if (!element) return;
+    
+    const containerTop = scrollContainer === window
+      ? 0
+      : scrollContainer.getBoundingClientRect().top;
+    const elementTop = element.getBoundingClientRect().top;
+    const currentScroll = getScrollTop();
+    const target = currentScroll + elementTop - containerTop - offset;
+    
+    scrollTo(target);
+  }, [scrollContainer, getScrollTop, scrollTo]);
 
   const scrollToTop = useCallback(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
+    scrollTo(0);
+  }, [scrollTo]);
 
   if (loading) {
     return (
@@ -170,14 +204,17 @@ function DesignerProfile() {
   }
 
   return (
-    <div className="designer-public-profile" ref={topRef}>
+    <div className="designer-public-profile" ref={profileRef}>
       {/* Scroll Progress Bar */}
-      <div className="scroll-progress-bar" style={{ width: `${scrollProgress}%` }}></div>
+      <div 
+        className="scroll-progress-bar" 
+        style={{ width: `${scrollProgress}%` }}
+      />
 
-      {/* Fixed Background (like Dashboard header) */}
+      {/* Fixed Background */}
       <div className="designer-hero-bg">
         <img src="/bgm.jpg" alt="Background" />
-        <div className="hero-overlay"></div>
+        <div className="hero-overlay" />
       </div>
 
       {/* Fixed Back Button */}
@@ -200,21 +237,27 @@ function DesignerProfile() {
 
       {/* Scroll to Top Button */}
       {showScrollTop && (
-        <button className="scroll-to-top-btn" onClick={scrollToTop} aria-label="Scroll to top">
+        <button 
+          className="scroll-to-top-btn" 
+          onClick={scrollToTop} 
+          aria-label="Scroll to top"
+        >
           ↑
         </button>
       )}
 
-      {/* Main Content — Dashboard-style: single scrollable area */}
-      <div className="designer-profile-content">
+      {/* Main Content */}
+      <div className="designer-profile-content" ref={topRef}>
         
-        {/* Left Sidebar — sticky, scrolls WITH the page */}
-        <div className="designer-info-panel">
+        {/* Left Sidebar — sticky */}
+        <aside className="designer-info-panel">
           <div className="designer-avatar-large">
             {designer.avatar_url ? (
               <img src={designer.avatar_url} alt={designer.username} />
             ) : (
-              <div className="avatar-initial">{designer.username?.[0]?.toUpperCase()}</div>
+              <div className="avatar-initial">
+                {designer.username?.[0]?.toUpperCase()}
+              </div>
             )}
           </div>
           
@@ -236,7 +279,6 @@ function DesignerProfile() {
             </div>
           </div>
 
-          {/* Quick Scroll Buttons */}
           <div className="quick-scroll-buttons">
             <button onClick={scrollToWorks} className="quick-scroll-btn">
               View Collections ↓
@@ -257,7 +299,7 @@ function DesignerProfile() {
             </button>
           )}
 
-          {/* About Section — scroll target */}
+          {/* About Section */}
           <div className="designer-bio-section" ref={aboutSectionRef}>
             <h3>About</h3>
             {designer.bio ? (
@@ -272,34 +314,42 @@ function DesignerProfile() {
               <>
                 <h3>Connect</h3>
                 {designer.website && (
-                  <a href={designer.website.startsWith('http') ? designer.website : `https://${designer.website}`} 
-                     target="_blank" 
-                     rel="noopener noreferrer" 
-                     className="designer-link">
+                  <a 
+                    href={designer.website.startsWith('http') ? designer.website : `https://${designer.website}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="designer-link"
+                  >
                     🌐 Website
                   </a>
                 )}
                 {designer.instagram && (
-                  <a href={`https://instagram.com/${designer.instagram.replace('@', '')}`} 
-                     target="_blank" 
-                     rel="noopener noreferrer" 
-                     className="designer-link">
+                  <a 
+                    href={`https://instagram.com/${designer.instagram.replace('@', '')}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="designer-link"
+                  >
                     📷 Instagram
                   </a>
                 )}
                 {designer.facebook && (
-                  <a href={designer.facebook.startsWith('http') ? designer.facebook : `https://${designer.facebook}`} 
-                     target="_blank" 
-                     rel="noopener noreferrer" 
-                     className="designer-link">
+                  <a 
+                    href={designer.facebook.startsWith('http') ? designer.facebook : `https://${designer.facebook}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="designer-link"
+                  >
                     📘 Facebook
                   </a>
                 )}
                 {designer.twitter && (
-                  <a href={`https://twitter.com/${designer.twitter.replace('@', '')}`} 
-                     target="_blank" 
-                     rel="noopener noreferrer" 
-                     className="designer-link">
+                  <a 
+                    href={`https://twitter.com/${designer.twitter.replace('@', '')}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="designer-link"
+                  >
                     🐦 Twitter
                   </a>
                 )}
@@ -308,16 +358,18 @@ function DesignerProfile() {
               <p className="no-links">No social links added</p>
             )}
           </div>
-        </div>
+        </aside>
 
-        {/* Right Panel — Collections, flows naturally with page */}
-        <div className="designer-works-panel" ref={worksSectionRef}>
+        {/* Right Panel — Collections */}
+        <section className="designer-works-panel" ref={worksSectionRef}>
           <h2 className="works-title">Collections</h2>
           
           {designs.length === 0 ? (
             <div className="no-designs-container">
               <p className="no-designs">No designs uploaded yet</p>
-              <button onClick={scrollToTop} className="back-to-top-link">Back to Top ↑</button>
+              <button onClick={scrollToTop} className="back-to-top-link">
+                Back to Top ↑
+              </button>
             </div>
           ) : (
             <>
@@ -330,12 +382,14 @@ function DesignerProfile() {
                   >
                     <div className="work-image">
                       <img 
-                        src={design.image_url?.startsWith('http') ? design.image_url : `http://localhost:5000${design.image_url}`} 
+                        src={
+                          design.image_url?.startsWith('http') 
+                            ? design.image_url 
+                            : `http://localhost:5000${design.image_url}`
+                        } 
                         alt={design.title}
                         loading="lazy"
-                        onError={(e) => {
-                          e.target.src = '/bgimage.jpg';
-                        }}
+                        onError={(e) => { e.target.src = '/bgimage.jpg'; }}
                       />
                       <div className="work-overlay">
                         <button className="view-details-btn">View Details</button>
@@ -353,14 +407,15 @@ function DesignerProfile() {
                 ))}
               </div>
               
-              {/* End of Collections */}
               <div className="collections-end">
                 <p>End of Collections</p>
-                <button onClick={scrollToTop} className="back-to-top-link">Back to Top ↑</button>
+                <button onClick={scrollToTop} className="back-to-top-link">
+                  Back to Top ↑
+                </button>
               </div>
             </>
           )}
-        </div>
+        </section>
       </div>
     </div>
   );
