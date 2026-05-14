@@ -481,7 +481,7 @@ function Designer() {
       <main className="studio-content">
         {activeTab === "gallery" && (
           <div className="gallery-view">
-            <h2 className="view-title">My Designs ({designs.length})</h2>
+            <h2 className="view-title">My Designs awds ({designs.length})</h2>
             <div className="gallery-grid">
               {designs.map((item) => (
                 <div key={item.design_id} className="gallery-item real-post">
