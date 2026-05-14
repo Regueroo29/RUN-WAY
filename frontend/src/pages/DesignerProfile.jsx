@@ -354,11 +354,6 @@ function DesignerProfile() {
         </button>
       )}
 
-      {/* Bottom Nav — identical to Dashboard */}
-      <nav className="bottom-nav">
-        <Link to="/dashboard" className="nav-item">Discover</Link>
-        <Link to="/profile" className="nav-item">Profile</Link>
-      </nav>
     </div>
   );
 }
